@@ -1,0 +1,8 @@
+com\farmacia\modelo\Usuario.class
+com\farmacia\servlet\RegistroUsuarioServlet.class
+com\farmacia\util\PruebaConexion.class
+FarmaciaWeb\JakartaRestConfiguration.class
+com\farmacia\servlet\ConexionServlet.class
+com\farmacia\util\Conexion.class
+com\farmacia\dao\UsuarioDAO.class
+FarmaciaWeb\resources\JakartaEE10Resource.class
