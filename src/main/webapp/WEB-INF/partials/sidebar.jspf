@@ -1,0 +1,18 @@
+<%@ page pageEncoding="UTF-8" %>
+<%-- Navegación lateral compartida, con enlaces a los módulos del sistema. --%>
+<% String rolMenu = java.text.Normalizer.normalize(String.valueOf(session.getAttribute("rol")), java.text.Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase(java.util.Locale.ROOT); boolean gestionCompletaMenu = rolMenu.equals("admin") || rolMenu.equals("administrador") || rolMenu.equals("farmaceutico"); boolean puedeVenderMenu = gestionCompletaMenu || rolMenu.equals("cajero") || rolMenu.equals("vendedor"); %>
+<aside class="sidebar">
+    <div class="side-brand">✚ Farmacia</div>
+    <a class="nav-link ${activePage eq 'panel' ? 'active' : ''}" href="${pageContext.request.contextPath}/panel.jsp"><span class="nav-icon">▦</span>Dashboard</a>
+    <% if (gestionCompletaMenu) { %>
+    <a class="nav-link ${activePage eq 'medicamentos' ? 'active' : ''}" href="${pageContext.request.contextPath}/medicamentos.jsp"><span class="nav-icon">◈</span>Medicamentos</a>
+    <% } if (puedeVenderMenu) { %>
+    <a class="nav-link ${activePage eq 'ventas' ? 'active' : ''}" href="${pageContext.request.contextPath}/ventas.jsp"><span class="nav-icon">🛒</span>Ventas</a>
+    <% } if (gestionCompletaMenu) { %>
+    <a class="nav-link ${activePage eq 'compras' ? 'active' : ''}" href="${pageContext.request.contextPath}/compras.jsp"><span class="nav-icon">▤</span>Compras</a>
+    <a class="nav-link ${activePage eq 'reportes' ? 'active' : ''}" href="${pageContext.request.contextPath}/reportes.jsp"><span class="nav-icon">▥</span>Reportes</a>
+    <% } %>
+    <a class="nav-link logout" href="${pageContext.request.contextPath}/LogoutServlet">Cerrar sesión</a>
+</aside>
+
+

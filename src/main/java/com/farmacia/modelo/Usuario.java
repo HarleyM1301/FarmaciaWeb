@@ -1,59 +1,46 @@
 package com.farmacia.modelo;
 
+/** Datos de usuario usados por el inicio de sesión y el registro. */
 public class Usuario {
 
-    private int id;
-    private String nombres;
-    private String apellidos;
-    private String documento;
-    private String correo;
+    private int idUsuario;
+    private String nombre;
     private String usuario;
-    private String clave;
-    private String telefono;
-    private String direccion;
+    private String contrasena;
     private String rol;
 
     public Usuario() {
     }
 
-    public int getId() {
-        return id;
+    public Usuario(int idUsuario, String nombre, String usuario, String contrasena, String rol) {
+        this.idUsuario = idUsuario;
+        this.nombre = nombre;
+        this.usuario = usuario;
+        this.contrasena = contrasena;
+        this.rol = rol;
     }
 
-    public void setId(int id) {
-        this.id = id;
+    public Usuario(String nombre, String usuario, String contrasena, String rol) {
+        this.nombre = nombre;
+        this.usuario = usuario;
+        this.contrasena = contrasena;
+        this.rol = rol;
     }
 
-    public String getNombres() {
-        return nombres;
+    public int getIdUsuario() {
+        return idUsuario;
     }
 
-    public void setNombres(String nombres) {
-        this.nombres = nombres;
+    public void setIdUsuario(int idUsuario) {
+        this.idUsuario = idUsuario;
     }
 
-    public String getApellidos() {
-        return apellidos;
+    public String getNombre() {
+        return nombre;
     }
 
-    public void setApellidos(String apellidos) {
-        this.apellidos = apellidos;
-    }
-
-    public String getDocumento() {
-        return documento;
-    }
-
-    public void setDocumento(String documento) {
-        this.documento = documento;
-    }
-
-    public String getCorreo() {
-        return correo;
-    }
-
-    public void setCorreo(String correo) {
-        this.correo = correo;
+    public void setNombre(String nombre) {
+        this.nombre = nombre;
     }
 
     public String getUsuario() {
@@ -64,28 +51,12 @@ public class Usuario {
         this.usuario = usuario;
     }
 
-    public String getClave() {
-        return clave;
+    public String getContrasena() {
+        return contrasena;
     }
 
-    public void setClave(String clave) {
-        this.clave = clave;
-    }
-
-    public String getTelefono() {
-        return telefono;
-    }
-
-    public void setTelefono(String telefono) {
-        this.telefono = telefono;
-    }
-
-    public String getDireccion() {
-        return direccion;
-    }
-
-    public void setDireccion(String direccion) {
-        this.direccion = direccion;
+    public void setContrasena(String contrasena) {
+        this.contrasena = contrasena;
     }
 
     public String getRol() {

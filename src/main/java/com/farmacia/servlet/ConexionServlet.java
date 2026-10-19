@@ -11,8 +11,10 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
 @WebServlet("/conexion")
+/** Endpoint de diagnóstico para comprobar la disponibilidad de MySQL. */
 public class ConexionServlet extends HttpServlet {
 
+    /** Muestra si la conexión de la aplicación puede abrirse y cerrarse. */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {

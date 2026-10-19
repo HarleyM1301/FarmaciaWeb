@@ -2,78 +2,55 @@ package com.farmacia.servlet;
 
 import com.farmacia.dao.UsuarioDAO;
 import com.farmacia.modelo.Usuario;
-import java.io.IOException;
-import java.io.PrintWriter;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
+/** Valida y registra cuentas nuevas sin imprimir datos del usuario en HTML. */
 @WebServlet("/RegistroUsuarioServlet")
 public class RegistroUsuarioServlet extends HttpServlet {
 
+    /** Procesa el formulario de registro y devuelve un estado por redirección. */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
+        request.setCharacterEncoding("UTF-8");
+        String nombre = limpiar(request.getParameter("nombre"));
+        String usuarioNombre = limpiar(request.getParameter("usuario"));
+        String contrasena = request.getParameter("contrasena");
+        String rol = limpiar(request.getParameter("rol"));
 
-        response.setContentType("text/html;charset=UTF-8");
-
-        // Recibir datos del formulario
-        Usuario usuario = new Usuario();
-
-        usuario.setNombres(request.getParameter("nombres"));
-        usuario.setApellidos(request.getParameter("apellidos"));
-        usuario.setDocumento(request.getParameter("documento"));
-        usuario.setCorreo(request.getParameter("correo"));
-        usuario.setUsuario(request.getParameter("usuario"));
-        usuario.setClave(request.getParameter("clave"));
-        usuario.setTelefono(request.getParameter("telefono"));
-        usuario.setDireccion(request.getParameter("direccion"));
-        usuario.setRol(request.getParameter("rol"));
+        // Rechaza datos incompletos o fuera de los límites razonables.
+        if (nombre.isBlank() || nombre.length() > 100
+                || !usuarioNombre.matches("[A-Za-z0-9._-]{3,40}")
+                || contrasena == null || contrasena.length() < 8
+                || contrasena.getBytes(StandardCharsets.UTF_8).length > 72
+                || !("Vendedor".equals(rol) || "Usuario".equals(rol))) {
+            response.sendRedirect(request.getContextPath() + "/registro.jsp?estado=datos");
+            return;
+        }
 
         UsuarioDAO dao = new UsuarioDAO();
-
-        try (PrintWriter out = response.getWriter()) {
-
-            // Verificar si existe
-            boolean existe = dao.existeUsuario(
-                    usuario.getDocumento(),
-                    usuario.getCorreo(),
-                    usuario.getUsuario()
-            );
-
-            if (existe) {
-
-                out.println("<h2 style='color:red;'>❌ Ya existe un usuario con ese documento, correo o usuario.</h2>");
-                out.println("<a href='registro.jsp'>Volver al registro</a>");
-
-            } else {
-
-                boolean registrado = dao.registrarUsuario(usuario);
-
-                if (registrado) {
-
-                    out.println("<h2 style='color:green;'>✅ Usuario registrado correctamente.</h2>");
-                    out.println("<a href='login.jsp'>Ir al login</a>");
-
-                } else {
-
-                    out.println("<h2 style='color:red;'>❌ No se pudo registrar el usuario.</h2>");
-                    out.println("<a href='registro.jsp'>Volver</a>");
-
-                }
-            }
-
-        } catch (Exception e) {
-
-            e.printStackTrace();
-
-            response.getWriter().println(
-                    "<h2 style='color:red;'>Error: "
-                    + e.getMessage()
-                    + "</h2>"
-            );
+        if (dao.existeUsuario(usuarioNombre)) {
+            response.sendRedirect(request.getContextPath() + "/registro.jsp?estado=existe");
+            return;
         }
+
+        // El DAO almacena la contraseña como hash BCrypt.
+        Usuario usuario = new Usuario(nombre, usuarioNombre, contrasena, rol);
+        if (dao.registrarUsuario(usuario)) {
+            response.sendRedirect(request.getContextPath() + "/login.jsp?registro=1");
+        } else {
+            response.sendRedirect(request.getContextPath() + "/registro.jsp?estado=error");
+        }
+    }
+
+    /** Convierte los parámetros ausentes en texto vacío y quita espacios laterales. */
+    private String limpiar(String texto) {
+        return texto == null ? "" : texto.trim();
     }
 }

@@ -1,0 +1,9 @@
+<%@ page pageEncoding="UTF-8" %>
+<%-- Encabezado compartido: nombre del sistema e identidad de la sesión. --%>
+<%@ page import="com.farmacia.util.HtmlUtil" %>
+<header class="topbar">
+    <a class="brand" href="${pageContext.request.contextPath}/panel.jsp">Sistema de Gestión para Farmacia</a>
+    <div class="user-chip"><span class="avatar"><%= HtmlUtil.escapar(session.getAttribute("nombre") == null ? "U" : session.getAttribute("nombre").toString().substring(0, 1)) %></span><span><%= HtmlUtil.escapar(session.getAttribute("nombre")) %></span></div>
+</header>
+
+

@@ -1,0 +1,12 @@
+# Artefactos generados por Maven/NetBeans.
+/target/
+/build/
+/dist/
+/nbproject/private/
+
+# Configuración local y archivos temporales.
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
