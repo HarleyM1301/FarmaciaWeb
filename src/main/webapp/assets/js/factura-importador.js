@@ -1,9 +1,9 @@
-/* Lee formatos tabulares/XML en el navegador y crea un borrador editable; no escribe el inventario. */
+/* Lee formatos tabulares, XML e imágenes localmente; solo prepara un borrador editable. */
 (() => {
   const archivo = document.getElementById('factura');
   if (!archivo) return;
 
-  // Intenta importar al seleccionar un archivo; los PDF y fotos se conservan para revisión manual.
+  // Importa datos estructurados o usa OCR local con imágenes; nunca confirma el inventario.
   archivo.addEventListener('change', async () => {
     const file = archivo.files?.[0];
     if (!file) return;
@@ -17,26 +17,200 @@
       let factura;
       if (['csv', 'txt'].includes(extension)) factura = leerCSV(await leerTexto(file));
       else if (extension === 'xml') factura = leerXML(await leerTexto(file));
+      else if (['jpg', 'jpeg', 'png'].includes(extension)) {
+        mostrarEstado('Leyendo la imagen en este navegador. Puede tardar unos segundos…');
+        const texto = await leerImagen(file);
+        document.getElementById('textoOCR').value = texto;
+        document.getElementById('ocrReview').hidden = false;
+        factura = leerOCR(texto);
+      }
       else {
-        mostrarEstado('El archivo quedó adjunto. Este formato requiere revisión manual: completa los datos y las líneas antes de confirmar.');
+        mostrarEstado('El archivo quedó adjunto. Este formato no tiene lectura automática: completa los productos y revisa los datos antes de confirmar.');
         return;
       }
-      document.getElementById('proveedor').value ||= factura.proveedor || '';
-      document.getElementById('numeroFactura').value ||= factura.numero || '';
-      document.getElementById('fecha').value ||= fechaISO(factura.fecha || '');
-      document.getElementById('totalFactura').value ||= numeroISO(factura.total || '');
+      completarEncabezado(factura);
       if (!factura.lineas.length) {
-        mostrarEstado('No encontré líneas reconocibles. El archivo queda adjunto; puedes cargar los productos manualmente.', 'error');
+        mostrarEstado('No pude reconocer renglones de productos. El texto extraído quedó disponible para corregirlo o puedes agregarlos manualmente.', 'error');
         return;
       }
       const contenedor = document.getElementById('lineas');
       contenedor.replaceChildren();
-      factura.lineas.forEach(linea => agregarLinea(linea));
-      mostrarEstado(`Leí ${factura.lineas.length} línea(s). Revisa proveedor, factura, productos, cantidades y costos antes de confirmar.`);
+      factura.lineas.forEach(linea => agregarLinea({ ...linea, origen: factura.origen || 'archivo' }));
+      const pendientesOCR = factura.origen === 'ocr' && factura.lineas.some(linea => !linea.cantidad || !linea.costo);
+      const monedaAjena = factura.moneda && factura.moneda !== 'COP';
+      const resumen = pendientesOCR
+        ? `Detecté ${factura.lineas.length} producto(s), pero no pude separar con seguridad todas las cantidades y costos. Completa esos campos y confirma cada medicamento antes de guardar.`
+        : `Detecté ${factura.lineas.length} producto(s). Revisa nombres, cantidades, costos y datos de factura antes de confirmar.`;
+      mostrarEstado(resumen + (monedaAjena ? ` La factura indica ${factura.moneda}; convierte los importes a COP antes de confirmar, porque el sistema no convierte monedas.` : ''), pendientesOCR || monedaAjena ? 'error' : 'ok');
     } catch (error) {
-      mostrarEstado(`No pude interpretar el archivo (${error.message}). Quedó adjunto y puedes completar la recepción manualmente.`, 'error');
+      mostrarEstado(`No pude leer la factura (${error.message}). El archivo quedó adjunto y puedes completar la recepción manualmente.`, 'error');
     }
   });
+
+  // Completa cabecera sin borrar datos que la persona ya haya escrito.
+  function completarEncabezado(factura) {
+    if (factura.proveedor) document.getElementById('proveedor').value ||= factura.proveedor;
+    if (factura.numero) document.getElementById('numeroFactura').value ||= factura.numero;
+    const campoFecha = document.getElementById('fecha');
+    if (factura.fecha && (!campoFecha.value || campoFecha.value === campoFecha.dataset.default)) {
+      campoFecha.value = fechaISO(factura.fecha);
+    }
+    if (factura.total) document.getElementById('totalFactura').value ||= numeroOCR(factura.total);
+  }
+
+  // Ejecuta Tesseract.js y sus modelos locales; la imagen no sale del navegador.
+  async function leerImagen(file) {
+    if (!window.Tesseract?.createWorker) throw new Error('el lector OCR no pudo cargarse; comprueba que estén desplegados los recursos de OCR');
+    const contexto = document.getElementById('ocr-runtime').dataset.context;
+    const base = `${contexto}/assets/vendor/ocr`;
+    let worker;
+    try {
+      worker = await Tesseract.createWorker('spa', 1, {
+        workerPath: `${base}/worker.min.js`,
+        corePath: `${base}/core/tesseract-core-lstm.wasm.js`,
+        langPath: `${base}/lang/4.0.0_best_int`,
+        gzip: true,
+        workerBlobURL: false,
+        logger: progreso => {
+          if (progreso.status === 'recognizing text') {
+            mostrarEstado(`Leyendo la factura: ${Math.round(progreso.progress * 100)} %`);
+          }
+        }
+      });
+      const resultado = await worker.recognize(file);
+      return resultado.data.text || '';
+    } finally {
+      if (worker) await worker.terminate();
+    }
+  }
+
+  // Extrae productos del OCR, pero deja vacíos los importes si la factura no tiene encabezados confiables.
+  function leerOCR(texto) {
+    const lineas = texto.split(/\r?\n/).map(linea => linea.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const completo = lineas.join('\n');
+    const obtener = (patron) => completo.match(patron)?.[1]?.trim() || '';
+    const proveedor = obtener(/(?:proveedor|supplier|emisor)\s*[:#-]?\s*([^\n]+)/i) || lineas[0] || '';
+    const moneda = obtener(/(?:moneda|currency)\s*[:#-]?\s*([A-Z]{3})\b/i);
+    const numero = obtener(/(?:n(?:ú|u)?mero\s+de\s+factura|invoice\s*(?:number|no\.?|#)|factura\s*(?:n(?:ú|u)?m(?:ero)?\.?|no\.?|#))\s*[:#-]?\s*([A-Z0-9-]{3,})/i)
+      || obtener(/\bfactura\s*[:#]\s*([A-Z0-9-]{3,})/i)
+      || obtener(/\bfactura\s+(\d{4,})/i)
+      || obtener(/\bconsecutivo\s*[:#-]?\s*([A-Z0-9-]{5,})/i)
+      || obtener(/\bdoc(?:umento)?\.?\s*interno\s*[:#-]?\s*([A-Z0-9-]{3,})/i);
+    let fecha = obtener(/(?:fecha|date)\s*[:#-]?\s*(\d{1,2}[/. -]\d{1,2}[/. -]\d{2,4}|\d{4}-\d{2}-\d{2}|\d{1,2}\s+de\s+[a-záéíóú]+\s+de\s+\d{4})/i);
+    if (!fecha) fecha = lineas.find(linea => /^factura\s*[:#]?\s*\d{4,}/i.test(linea))?.match(/(\d{1,2}[/. -]\d{1,2}[/. -]\d{2,4}|\d{1,2}\s+de\s+[a-záéíóú]+\s+de\s+\d{4})/i)?.[1] || '';
+    if (fecha) fecha = fecha.replace(/\bde\b/gi, ' ').replace(/\s+/g, ' ').trim();
+    const totalLine = [...lineas].reverse().find(linea => /\b(total|total a pagar|importe total|payable)\b/i.test(linea));
+    // El total suele aparecer después de subtotal, IVA y otros valores en la misma línea.
+    const valoresTotal = totalLine?.match(/\d[\d.,]*/g) || [];
+    const total = valoresTotal.length ? valoresTotal[valoresTotal.length - 1] : '';
+    const encabezado = lineas.findIndex(linea => /\b(descripci[oó]n|producto|medicamento|art[ií]culo)\b/i.test(linea)
+      && /\b(cant|cantidad|qty|unidades)\b/i.test(linea));
+    const inicio = encabezado >= 0 ? encabezado + 1 : 0;
+    const encabezadosNormalizados = normalizar(completo);
+    const tablaFactura = /descripcion/.test(encabezadosNormalizados)
+      && /(?:cantidad|cant|qty)/.test(encabezadosNormalizados)
+      && /precio(?:ud|unit|unitario)/.test(encabezadosNormalizados)
+      && /(?:importe|total)/.test(encabezadosNormalizados);
+    const tablaConImpuestoDescuento = tablaFactura
+      && /(?:dto|descuento)/.test(encabezadosNormalizados)
+      && /(?:imp|iva|impuesto)/.test(encabezadosNormalizados);
+    const productos = [];
+    for (const original of lineas.slice(inicio)) {
+      // Termina al llegar al pie de factura para no convertir impuestos o totales en productos.
+      if (/\b(subtotal|total a pagar|importe total|iva|impuesto|observaciones|forma de pago|especialidad|compras:)\b/i.test(original)) break;
+      if (/\b(descripci[oó]n|producto|medicamento|cantidad|cant\.?|precio unitario|precio unit\.?|total)\b/i.test(original)) continue;
+      // Quita el código de artículo cuando el OCR lo separó con una barra vertical.
+      const fila = quitarCodigoArticulo(original);
+      let nombre = '';
+      let cantidad = '';
+      let costo = '';
+      if (tablaFactura) {
+        // Los valores finales pertenecen a las columnas de la tabla; códigos y concentraciones quedan antes de ellas.
+        const valores = [...fila.matchAll(/\d[\d.,]*/g)];
+        if (valores.length < 5) continue;
+        const indiceColumnas = valores.length - 5;
+        const indiceCantidad = tablaConImpuestoDescuento ? indiceColumnas : indiceColumnas + 1;
+        nombre = fila.slice(0, valores[indiceCantidad].index);
+        cantidad = unidadesISO(valores[indiceCantidad][0]);
+        if (tablaConImpuestoDescuento && valores.length >= 5) {
+          // En facturas con descuento e impuesto, el total de línea refleja mejor el costo realmente facturado.
+          const importeLinea = Number(numeroOCR(valores[valores.length - 1][0]));
+          const unidadesLinea = Number(cantidad);
+          costo = Number.isFinite(importeLinea) && unidadesLinea > 0
+            ? (importeLinea / unidadesLinea).toFixed(4)
+            : numeroOCR(valores[valores.length - 4][0]);
+        } else {
+          costo = numeroOCR(valores[indiceColumnas + 2][0]);
+        }
+      } else {
+        // Sin cabeceras, reconoce el nombre por la presentación farmacéutica y no adivina cantidad ni costo.
+        nombre = extraerNombreMedicamento(fila);
+      }
+      // Quita etiquetas de referencia y signos que suelen quedar pegados al nombre en el OCR.
+      nombre = nombre.replace(/\b(?:c[oó]digo|ref(?:erencia)?|ean|sku)\b/gi, ' ')
+        .replace(/[^\p{L}\p{N}()/-]+$/u, '').trim();
+      // Descarta líneas sin un nombre suficientemente útil para compararlo con el catálogo.
+      if (nombre.replace(/[^\p{L}]/gu, '').length < 4) continue;
+      // Rechaza cantidades y precios evidentemente fuera de los límites de una factura.
+      if (cantidad && (!costo || Number(cantidad) > 50000 || Number(costo) > 100000000)) {
+        cantidad = '';
+        costo = '';
+      }
+      const formas = '(?:comprimidos?|compr\\.?|comp\\.?|tabletas?|tabs?\\.?|c[aá]psulas?|caps?\\.?|sobres?|ampollas?|unidades?|uds?\\.?|frascos?|ml)';
+      const multiplicador = nombre.match(new RegExp(`\\b(\\d{1,4})\\s*[x×]\\s*(\\d{1,4})\\s*(${formas})(?=\\W|$)`, 'i'));
+      const presentacion = multiplicador || nombre.match(new RegExp(`\\b(\\d{1,5})\\s*(${formas})(?=\\W|$)`, 'i'));
+      const tipo = presentacion?.[multiplicador ? 3 : 2]?.toLocaleLowerCase('es') || '';
+      const unidadFactura = /\b(?:unid|unidad|und|ud)\b/i.test(fila);
+      const unidadBase = /comprimido|compr|comp\.|tableta|tab/.test(tipo) ? 'tableta' : /c[aá]psula|caps?\./.test(tipo) ? 'capsula'
+        : /sobre/.test(tipo) ? 'sobre' : /ampolla/.test(tipo) ? 'ampolla' : /frasco/.test(tipo) ? 'frasco'
+        : /ml/.test(tipo) ? (unidadFactura ? 'frasco' : 'ml') : 'unidad';
+      const unidadesPorPresentacion = /ml/.test(tipo) && unidadFactura ? 1
+        : multiplicador ? Number(multiplicador[1]) * Number(multiplicador[2]) : presentacion ? Number(presentacion[1]) : 1;
+      // Envía el borrador a la pantalla; si no se leyeron importes seguros quedan vacíos para captura manual.
+      productos.push({ nombre, cantidad, costo, unidadBase, unidadesPorPresentacion: String(unidadesPorPresentacion) });
+    }
+    // Marca el origen para que la pantalla pueda explicar cuándo debe completarse cantidad y costo.
+    return { proveedor, numero, fecha, total, moneda, lineas: productos, origen: 'ocr' };
+  }
+
+  // Elimina un código de producto inicial sin quitar números que pertenezcan a su concentración.
+  function quitarCodigoArticulo(linea) {
+    return linea
+      .replace(/^\s*[([]?\s*[A-Z0-9][A-Z0-9.,/-]{3,}\s*[|¦]\s*/i, '')
+      .replace(/^\s*\(?\d{1,3}[.)]?\s+/, '')
+      .replace(/^\s*[A-Z]{1,5}\d[A-Z0-9-]{3,}\s+/i, '')
+      .replace(/^\s*\d{8,}\s+/, '')
+      .replace(/^\s*\d{5,}(?:[.,]\d+)?\s+/, '')
+      .trim();
+  }
+
+  // Conserva la descripción hasta la presentación del medicamento y descarta columnas numéricas posteriores.
+  function extraerNombreMedicamento(linea) {
+    const presentacion = /\b\d{1,5}\s*(?:comprimidos?|compr\.?|tabletas?|tabs?\.?|c[aá]psulas?|caps?\.?|sobres?|ampollas?|frascos?|unidades?|uds?\.?|ml)(?=\W|$)/gi;
+    const coincidencias = [...linea.matchAll(presentacion)];
+    if (coincidencias.length) {
+      const ultima = coincidencias[coincidencias.length - 1];
+      return linea.slice(0, ultima.index + ultima[0].length);
+    }
+    const efg = linea.match(/\b(?:EFG|gen[eé]rico)\b/i);
+    if (efg) return linea.slice(0, efg.index + efg[0].length);
+    return linea.replace(/\s+[\d.,]+(?:\s+[\d.,]+){2,}.*$/, '').trim();
+  }
+
+  // Permite volver a interpretar el texto si OCR separó mal una fila o algún número.
+  window.importarTextoOCR = () => {
+    const factura = leerOCR(document.getElementById('textoOCR').value);
+    completarEncabezado(factura);
+    if (!factura.lineas.length) {
+      mostrarEstado('Aún no reconozco filas de producto en el texto. Corrige la lectura o agrégalas manualmente.', 'error');
+      return;
+    }
+    document.getElementById('lineas').replaceChildren();
+    factura.lineas.forEach(linea => agregarLinea({ ...linea, origen: factura.origen || 'ocr' }));
+    const monedaAjena = factura.moneda && factura.moneda !== 'COP';
+    mostrarEstado(`Detecté ${factura.lineas.length} producto(s) en el texto corregido. Revisa toda la información antes de guardar.`
+      + (monedaAjena ? ` La factura indica ${factura.moneda}; convierte los importes a COP antes de confirmar.` : ''), monedaAjena ? 'error' : 'ok');
+  };
 
   // Usa UTF-8 y recurre a Windows-1252 para facturas CSV antiguas.
   async function leerTexto(file) {
@@ -58,12 +232,14 @@
       nombre: buscar('medicamento', 'producto', 'nombre', 'descripcion', 'description', 'item', 'product', 'articulo'),
       cantidad: buscar('cantidad', 'quantity', 'qty', 'unidades'),
       costo: buscar('costo', 'cost', 'precio', 'price', 'precio unitario', 'unit price', 'unit cost', 'costo unitario'),
+      categoria: buscar('grupo farmacologico', 'grupo', 'categoria', 'categoría'),
       lote: buscar('lote', 'lot', 'batch', 'batch number'),
       vencimiento: buscar('vencimiento', 'fecha vencimiento', 'expiry', 'expiration', 'expiry date'),
       proveedor: buscar('proveedor', 'supplier', 'vendor'),
       numero: buscar('factura', 'numero factura', 'invoice', 'invoice number', 'invoice id'),
       fecha: buscar('fecha factura', 'fecha', 'date', 'issue date', 'invoice date'),
-      total: buscar('total factura', 'total', 'invoice total', 'payable amount')
+      total: buscar('total factura', 'total', 'invoice total', 'payable amount'),
+      moneda: buscar('moneda', 'currency', 'currency code')
     };
     if (columnas.nombre < 0 || columnas.cantidad < 0 || columnas.costo < 0) {
       throw new Error('faltan columnas de producto, cantidad o costo');
@@ -71,10 +247,11 @@
     const lineasImportadas = filas.map(fila => ({
       nombre: celda(fila, columnas.nombre), cantidad: unidadesISO(celda(fila, columnas.cantidad)),
       costo: numeroISO(celda(fila, columnas.costo)), lote: celda(fila, columnas.lote),
+      categoria: celda(fila, columnas.categoria),
       vencimiento: fechaISO(celda(fila, columnas.vencimiento))
     })).filter(fila => fila.nombre);
     return { proveedor: valorComun(filas, columnas.proveedor), numero: valorComun(filas, columnas.numero),
-      fecha: valorComun(filas, columnas.fecha), total: valorComun(filas, columnas.total), lineas: lineasImportadas };
+      fecha: valorComun(filas, columnas.fecha), total: valorComun(filas, columnas.total), moneda: valorComun(filas, columnas.moneda), lineas: lineasImportadas };
   }
 
   // Divide filas CSV sin cortar comas o punto y coma dentro de campos entrecomillados.
@@ -113,7 +290,8 @@
     const numero = buscarTexto(xml, ['invoicenumber', 'invoiceid', 'documentnumber', 'numeroFactura']) || buscarTexto(xml.documentElement, ['id']);
     const fecha = buscarTexto(xml, ['issuedate', 'invoicedate', 'fechaFactura', 'fecha']);
     const total = buscarTexto(xml, ['payableamount', 'taxinclusiveamount', 'invoicetotal', 'totalamount']);
-    return { proveedor, numero, fecha, total, lineas };
+    const moneda = buscarTexto(xml, ['documentcurrencycode', 'currencycode', 'moneda', 'currency']);
+    return { proveedor, numero, fecha, total, moneda, lineas };
   }
 
   // Obtiene el primer texto no vacío que coincida con uno de los nombres de etiqueta.
@@ -123,8 +301,21 @@
   }
 
   // Devuelve el primer valor repetido de una columna de cabecera del CSV.
+  // Toma el primer dato disponible de una columna opcional del CSV.
   function valorComun(filas, indice) { return indice < 0 ? '' : (filas.find(f => celda(f, indice).trim()) || [])[indice] || ''; }
+  // Lee una celda del CSV y la deja vacía cuando esa columna no existe.
   function celda(fila, indice) { return indice < 0 ? '' : (fila[indice] || '').trim(); }
+  // Cuenta separadores en la primera fila para detectar el formato del CSV.
   function contar(texto, caracter) { return [...texto].filter(c => c === caracter).length; }
+  // Convierte la cantidad importada a un entero que el inventario pueda guardar.
   function unidadesISO(valor) { const n = Number(numeroISO(valor)); return Number.isFinite(n) ? String(Math.round(n)) : ''; }
+  // Interpreta puntos como separadores de miles cuando el documento está en formato local.
+  function numeroOCR(valor) {
+    let texto = String(valor ?? '').replace(/[^\d,.-]/g, '');
+    if (texto.includes(',') && texto.includes('.')) return texto.lastIndexOf(',') > texto.lastIndexOf('.')
+      ? texto.replace(/\./g, '').replace(',', '.') : texto.replace(/,/g, '');
+    if (texto.includes(',')) return texto.replace(/\./g, '').replace(',', '.');
+    if (/^\d{1,3}(?:\.\d{3})+$/.test(texto)) return texto.replace(/\./g, '');
+    return /^-?\d+(?:\.\d+)?$/.test(texto) ? texto : '';
+  }
 })();

@@ -1,0 +1,43 @@
+{
+  "id": "b9b96de4-2770-4c2e-b8e2-5c69db51121b",
+  "version": "2.0",
+  "name": "FarmaciaWeb - Usuario consulta inventario",
+  "url": "http://localhost:8081",
+  "tests": [
+    {
+      "id": "9d0811bf-6da4-4e33-a0fc-daa10da5cf30",
+      "name": "Usuario inicia sesión y busca un medicamento",
+      "commands": [
+        {"id": "001", "comment": "Abre el acceso del sistema.", "command": "open", "target": "/FarmaciaWeb/login.jsp", "targets": [], "value": ""},
+        {"id": "002", "comment": "Reemplaza este valor por el usuario de prueba registrado con rol Usuario.", "command": "type", "target": "id=usuario", "targets": [], "value": ""},
+        {"id": "003", "comment": "Reemplaza este valor por la contraseña de esa cuenta de prueba.", "command": "type", "target": "id=contrasena", "targets": [], "value": ""},
+        {"id": "004", "comment": "Selecciona el perfil Usuario haciendo clic en su opción visible.", "command": "click", "target": "xpath=//label[contains(@class,'role-option')][.//span[normalize-space()='Usuario']]", "targets": [], "value": ""},
+        {"id": "005", "comment": "Envía las credenciales desde la interfaz web.", "command": "click", "target": "css=button[type='submit']", "targets": [], "value": ""},
+        {"id": "006", "comment": "Espera a que cargue el panel del sistema.", "command": "waitForElementPresent", "target": "css=.main h1", "targets": [], "value": ""},
+        {"id": "007", "comment": "Confirma que el usuario llegó al Dashboard.", "command": "assertText", "target": "css=.main h1", "targets": [], "value": "Dashboard"},
+        {"id": "008", "comment": "Confirma que el usuario puede navegar al inventario.", "command": "assertElementPresent", "target": "css=.sidebar a[href$='/medicamentos.jsp']", "targets": [], "value": ""},
+        {"id": "009", "comment": "Confirma que el usuario puede navegar a ventas.", "command": "assertElementPresent", "target": "css=.sidebar a[href$='/ventas.jsp']", "targets": [], "value": ""},
+        {"id": "010", "comment": "Confirma que el usuario no tiene acceso al módulo de compras.", "command": "assertElementNotPresent", "target": "css=.sidebar a[href$='/compras.jsp']", "targets": [], "value": ""},
+        {"id": "011", "comment": "Confirma que el usuario no tiene acceso a reportes administrativos.", "command": "assertElementNotPresent", "target": "css=.sidebar a[href$='/reportes.jsp']", "targets": [], "value": ""},
+        {"id": "012", "comment": "Abre el listado del inventario.", "command": "click", "target": "css=.sidebar a[href$='/medicamentos.jsp']", "targets": [], "value": ""},
+        {"id": "013", "comment": "Espera a que aparezca el buscador de medicamentos.", "command": "waitForElementPresent", "target": "id=buscar", "targets": [], "value": ""},
+        {"id": "014", "comment": "Busca un producto de prueba que debe existir en el inventario.", "command": "type", "target": "id=buscar", "targets": [], "value": "Paracetamol"},
+        {"id": "015", "comment": "Comprueba que el medicamento buscado aparece en la tabla.", "command": "waitForElementPresent", "target": "xpath=//tbody/tr[contains(., 'Paracetamol')]", "targets": [], "value": ""},
+        {"id": "016", "comment": "Confirma que el usuario no ve el botón para crear medicamentos.", "command": "assertElementNotPresent", "target": "css=button[onclick='abrirFormulario()']", "targets": [], "value": ""},
+        {"id": "017", "comment": "Confirma que al usuario tampoco se le muestran acciones de edición.", "command": "assertElementNotPresent", "target": "xpath=//th[normalize-space()='Acciones']", "targets": [], "value": ""}
+      ]
+    }
+  ],
+  "suites": [
+    {
+      "id": "6ef5ec1b-5b45-46cb-9fe2-756db535ce8d",
+      "name": "Suite de pruebas funcionales",
+      "persistSession": false,
+      "parallel": false,
+      "timeout": 300000,
+      "tests": ["9d0811bf-6da4-4e33-a0fc-daa10da5cf30"]
+    }
+  ],
+  "urls": ["http://localhost:8081"],
+  "plugins": []
+}

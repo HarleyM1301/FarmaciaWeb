@@ -1,0 +1,163 @@
+{
+  "info": {
+    "_postman_id": "e418c47c-4d33-4f27-99f3-75f800ce0119",
+    "name": "FarmaciaWeb - Evidencia GA9 AA3",
+    "description": "Colección de cinco pruebas automatizadas para FarmaciaWeb. La prueba 5 crea un usuario de prueba nuevo cada vez que se ejecutas la colección.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8081/FarmaciaWeb",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Prueba 1 - API y conexión MySQL disponibles",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/conexion",
+          "host": ["{{baseUrl}}"],
+          "path": ["conexion"]
+        },
+        "description": "Comprueba que la aplicación responda y pueda abrir la conexión a MySQL."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('El endpoint de diagnóstico responde 200', function () { pm.response.to.have.status(200); });",
+              "pm.test('La aplicación confirma la conexión con MySQL', function () { pm.expect(pm.response.text()).to.include('Conexión exitosa con MySQL'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Prueba 2 - Login valida campos obligatorios",
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"usuario\": \"\",\n  \"contrasena\": \"\"\n}",
+          "options": {"raw": {"language": "json"}}
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "login"]
+        },
+        "description": "Comprueba que el endpoint rechace el inicio de sesión si faltan usuario y contraseña."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('El servidor rechaza los datos incompletos con 400', function () { pm.response.to.have.status(400); });",
+              "pm.test('La respuesta explica que faltan las credenciales', function () { pm.expect(pm.response.json().mensaje).to.include('obligatorios'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Prueba 3 - Página interna requiere sesión",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/panel.jsp",
+          "host": ["{{baseUrl}}"],
+          "path": ["panel.jsp"]
+        },
+        "description": "Verifica que una visita sin iniciar sesión sea redirigida a la pantalla de acceso.",
+        "protocolProfileBehavior": {"disableFollowRedirects": true}
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('El panel redirige a quien no inició sesión', function () { pm.response.to.have.status(302); });",
+              "pm.test('La redirección conduce al formulario de acceso', function () { pm.expect(pm.response.headers.get('Location')).to.include('/login.jsp'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Prueba 4 - Endpoint inexistente devuelve 404",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/no-existe",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "no-existe"]
+        },
+        "description": "Comprueba que la API responda claramente ante una ruta no definida."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Una ruta desconocida devuelve 404', function () { pm.response.to.have.status(404); });",
+              "pm.test('La respuesta informa que la ruta no existe', function () { pm.expect(pm.response.json().mensaje).to.include('Endpoint no encontrado'); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "Prueba 5 - Registro exitoso de usuario",
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.collectionVariables.set('testUsername', 'qa_farmacia_' + Date.now());"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('La cuenta de prueba se registra con 201', function () { pm.response.to.have.status(201); });",
+              "pm.test('La respuesta confirma el registro', function () { pm.expect(pm.response.json().success).to.eql(true); });",
+              "pm.test('El rol asignado por el registro público es Usuario', function () { pm.expect(pm.response.json().mensaje).to.include('registrado'); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{"key": "Content-Type", "value": "application/json"}],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"nombre\": \"Usuario de prueba Postman\",\n  \"usuario\": \"{{testUsername}}\",\n  \"contrasena\": \"ClavePrueba123\"\n}",
+          "options": {"raw": {"language": "json"}}
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/registro",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "registro"]
+        },
+        "description": "Registra una cuenta ficticia con un nombre único para evitar duplicados entre ejecuciones. El endpoint asigna el rol Usuario. Cada ejecución crea un registro nuevo en la base de datos local."
+      }
+    }
+  ]
+}

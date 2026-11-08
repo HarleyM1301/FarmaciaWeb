@@ -18,11 +18,14 @@ public class LagoutServlet extends HttpServlet {
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
 
+        // Recupera la sesión existente sin crear una nueva si ya expiró.
         HttpSession sesion = request.getSession(false);
         if (sesion != null) {
+            // Elimina los datos de autenticación y permisos de la sesión.
             sesion.invalidate();
         }
 
+        // Devuelve al usuario al formulario de inicio de sesión.
         response.sendRedirect(request.getContextPath() + "/login.jsp");
     }
 }

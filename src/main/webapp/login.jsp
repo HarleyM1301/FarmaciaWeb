@@ -1,7 +1,7 @@
 <%-- Pantalla de inicio de sesión alineada con el prototipo visual. --%>
 <%@ page contentType="text/html;charset=UTF-8" pageEncoding="UTF-8" language="java" %>
 <%@ page import="java.util.List,java.util.Arrays,com.farmacia.dao.UsuarioDAO,com.farmacia.util.HtmlUtil" %>
-<% List<String> rolesDisponibles = new UsuarioDAO().listarRoles(); if (rolesDisponibles.isEmpty()) rolesDisponibles = Arrays.asList("Administrador", "Farmacéutico", "Cajero"); %>
+<% List<String> rolesDisponibles = new UsuarioDAO().listarRoles(); rolesDisponibles.removeIf(rol -> "cajero".equalsIgnoreCase(rol.trim()) || "vendedor".equalsIgnoreCase(rol.trim())); if (rolesDisponibles.isEmpty()) rolesDisponibles = Arrays.asList("Administrador", "Farmacéutico", "Usuario"); %>
 <!DOCTYPE html>
 <html lang="es">
 <head>

@@ -1,17 +1,30 @@
 <%@ page pageEncoding="UTF-8" %>
 <%-- Navegación lateral compartida, con enlaces a los módulos del sistema. --%>
-<% String rolMenu = java.text.Normalizer.normalize(String.valueOf(session.getAttribute("rol")), java.text.Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase(java.util.Locale.ROOT); boolean gestionCompletaMenu = rolMenu.equals("admin") || rolMenu.equals("administrador") || rolMenu.equals("farmaceutico"); boolean puedeVenderMenu = gestionCompletaMenu || rolMenu.equals("cajero") || rolMenu.equals("vendedor"); %>
+<%-- Normaliza el rol de la sesión para que mayúsculas y tildes no cambien los permisos del menú. --%>
+<% String rolMenu = java.text.Normalizer.normalize(String.valueOf(session.getAttribute("rol")), java.text.Normalizer.Form.NFD)
+        .replaceAll("\\p{M}", "").toLowerCase(java.util.Locale.ROOT); %>
+<%-- Identifica perfiles que pueden administrar medicamentos, compras, reportes y trazabilidad. --%>
+<% boolean gestionCompletaMenu = rolMenu.equals("admin") || rolMenu.equals("administrador") || rolMenu.equals("farmaceutico"); %>
+<%-- La administración de cuentas se reserva a Admin y Administrador, no a Farmacéutico. --%>
+<% boolean administradorMenu = rolMenu.equals("admin") || rolMenu.equals("administrador"); %>
+<%-- Permite consultar el catálogo a los perfiles que necesitan revisar existencias para vender. --%>
+<% boolean puedeVerInventarioMenu = gestionCompletaMenu || rolMenu.equals("usuario") || rolMenu.equals("cajero") || rolMenu.equals("vendedor"); %>
+<%-- Permite mostrar el acceso a ventas a administradores, usuarios de caja y vendedores. --%>
+<% boolean puedeVenderMenu = gestionCompletaMenu || rolMenu.equals("usuario") || rolMenu.equals("cajero") || rolMenu.equals("vendedor"); %>
 <aside class="sidebar">
     <div class="side-brand">✚ Farmacia</div>
     <a class="nav-link ${activePage eq 'panel' ? 'active' : ''}" href="${pageContext.request.contextPath}/panel.jsp"><span class="nav-icon">▦</span>Dashboard</a>
-    <% if (gestionCompletaMenu) { %>
+    <% if (puedeVerInventarioMenu) { %>
     <a class="nav-link ${activePage eq 'medicamentos' ? 'active' : ''}" href="${pageContext.request.contextPath}/medicamentos.jsp"><span class="nav-icon">◈</span>Medicamentos</a>
     <% } if (puedeVenderMenu) { %>
     <a class="nav-link ${activePage eq 'ventas' ? 'active' : ''}" href="${pageContext.request.contextPath}/ventas.jsp"><span class="nav-icon">🛒</span>Ventas</a>
     <% } if (gestionCompletaMenu) { %>
     <a class="nav-link ${activePage eq 'compras' ? 'active' : ''}" href="${pageContext.request.contextPath}/compras.jsp"><span class="nav-icon">▤</span>Compras</a>
     <a class="nav-link ${activePage eq 'reportes' ? 'active' : ''}" href="${pageContext.request.contextPath}/reportes.jsp"><span class="nav-icon">▥</span>Reportes</a>
+    <a class="nav-link ${activePage eq 'trazabilidad' ? 'active' : ''}" href="${pageContext.request.contextPath}/trazabilidad.jsp"><span class="nav-icon">↔</span>Movimientos de inventario</a>
     <% } %>
+    <%-- Muestra el acceso al listado de cuentas únicamente a perfiles administradores. --%>
+    <% if (administradorMenu) { %><a class="nav-link ${activePage eq 'catalogo' ? 'active' : ''}" href="${pageContext.request.contextPath}/CatalogoInvimaServlet"><span class="nav-icon">▦</span>Catálogo INVIMA</a><a class="nav-link ${activePage eq 'usuarios' ? 'active' : ''}" href="${pageContext.request.contextPath}/usuarios.jsp"><span class="nav-icon">♙</span>Usuarios</a><% } %>
     <a class="nav-link logout" href="${pageContext.request.contextPath}/LogoutServlet">Cerrar sesión</a>
 </aside>
 

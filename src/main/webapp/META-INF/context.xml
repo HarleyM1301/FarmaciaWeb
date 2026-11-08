@@ -1,2 +1,3 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Define el contexto con el que Tomcat publica esta aplicación web. -->
 <Context path="/FarmaciaWeb"/>

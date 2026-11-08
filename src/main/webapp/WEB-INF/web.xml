@@ -4,10 +4,12 @@
          xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
          version="6.0">
 
+    <!-- Define la página JSP que Tomcat abre al visitar la raíz de la aplicación. -->
     <welcome-file-list>
         <welcome-file>index.jsp</welcome-file>
     </welcome-file-list>
 
+    <!-- Cierra las sesiones inactivas después de treinta minutos. -->
     <session-config>
         <session-timeout>30</session-timeout>
     </session-config>

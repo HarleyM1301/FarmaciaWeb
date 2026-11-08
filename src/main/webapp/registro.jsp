@@ -5,11 +5,13 @@
 <div style="text-align:center"><div class="logo-mark" style="width:64px;height:64px;font-size:30px;margin:auto">✚</div><h1 style="font-size:24px">Crear cuenta</h1><p class="muted">Sistema de Gestión para Farmacia</p></div>
 <%-- Muestra el resultado del registro sin imprimir datos enviados por el usuario. --%>
 <% String estado = request.getParameter("estado"); if ("datos".equals(estado)) { %><div class="notice error">Revisa los datos. La contraseña debe tener al menos 8 caracteres.</div><% } else if ("existe".equals(estado)) { %><div class="notice error">Ese nombre de usuario ya está registrado.</div><% } else if ("error".equals(estado)) { %><div class="notice error">No se pudo crear la cuenta. Revisa la conexión con la base de datos.</div><% } %>
+<%-- Solo presenta la opción de crear administradores a una sesión administradora activa. --%>
+<% Object rolSesion = session.getAttribute("rol"); boolean puedeCrearAdministrador = rolSesion != null && ("Administrador".equalsIgnoreCase(rolSesion.toString()) || "Admin".equalsIgnoreCase(rolSesion.toString())); %>
 <form action="${pageContext.request.contextPath}/RegistroUsuarioServlet" method="post">
 <div class="field"><label for="nombre">Nombre completo</label><input id="nombre" name="nombre" maxlength="100" autocomplete="name" required></div>
 <div class="field"><label for="usuario">Usuario</label><input id="usuario" name="usuario" minlength="3" maxlength="40" pattern="[A-Za-z0-9._-]{3,40}" autocomplete="username" required></div>
 <div class="field"><label for="contrasena">Contraseña</label><input id="contrasena" name="contrasena" type="password" minlength="8" maxlength="72" autocomplete="new-password" required></div>
-<div class="field"><label for="rol">Perfil</label><select id="rol" name="rol" required><option value="Vendedor">Vendedor</option><option value="Usuario">Usuario</option></select></div>
+<div class="field"><label for="rol">Perfil</label><select id="rol" name="rol" required><option value="Usuario">Usuario</option><% if (puedeCrearAdministrador) { %><option value="Administrador">Administrador</option><% } %></select></div>
 <button class="btn" type="submit" style="width:100%;margin-top:15px">Crear cuenta</button></form>
 <p style="text-align:center;margin:22px 0 0">¿Ya tienes cuenta? <a class="back-link" href="${pageContext.request.contextPath}/login.jsp">Inicia sesión</a></p>
 </main></body></html>
