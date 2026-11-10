@@ -25,49 +25,93 @@
 <%-- El mismo formulario sirve para altas y modificaciones mediante el campo id. --%>
 <% if (puedeAdministrarInventario) { %><div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="titulo-form"><section class="modal-box"><div class="modal-head"><h2 id="titulo-form">Agregar medicamento</h2><button class="close" type="button" onclick="cerrarFormulario()" aria-label="Cerrar">×</button></div>
 <form action="${pageContext.request.contextPath}/MedicamentoServlet" method="post"><input type="hidden" id="id" name="id"><input type="hidden" name="accion" value="guardar"><input type="hidden" id="catalogoMedicamentoId" name="catalogoMedicamentoId">
-<p class="muted">Elige una presentación CUM y define la unidad mínima que venderás suelta. Ejemplo: para un blíster de 10 tabletas, elige Tableta y escribe 10 en «Unidades base por blíster». El precio será por tableta y también podrás vender el blíster completo.</p><div class="form-grid"><div class="field full"><label for="buscarCatalogoInvima">Buscar en catálogo oficial CUM / INVIMA</label><input id="buscarCatalogoInvima" type="search" placeholder="Nombre, principio activo, registro o CUM" autocomplete="off" aria-controls="resultadosCatalogoInvima"><div id="resultadosCatalogoInvima" class="resultados-medicamento" role="listbox" aria-label="Presentaciones oficiales encontradas" hidden></div><small id="estadoCatalogoInvima" class="muted" aria-live="polite">Busca una presentación para completar el nombre y el registro INVIMA.</small></div><div class="field"><label for="nombre">Nombre *</label><input id="nombre" name="nombre" maxlength="100" required></div><div class="field"><label for="categoria">Grupo farmacológico *</label><input id="categoria" name="categoria" maxlength="50" list="gruposFarmacologicos" placeholder="Ej.: Analgésicos" required><datalist id="gruposFarmacologicos"><%@ include file="/WEB-INF/partials/grupos-farmacologicos.jspf" %></datalist></div><div class="field"><label for="registroInvima">Registro INVIMA</label><input id="registroInvima" name="registroInvima" maxlength="60" placeholder="Ej.: 2024M-000000-R1"></div><div class="field"><label for="lote">Lote</label><input id="lote" name="lote" maxlength="30" placeholder="Código del lote recibido (opcional)"></div><div class="field"><label for="fecha">Fecha de vencimiento</label><input id="fecha" type="date" name="fecha"></div><div class="field"><label for="stock">Stock en unidad base *</label><input id="stock" type="number" name="stock" min="0" required></div><div class="field"><label for="unidadBase">Unidad mínima del inventario *</label><select id="unidadBase" name="unidadBase" required><option value="unidad">Unidad</option><option value="caja">Caja</option><option value="paquete">Paquete</option><option value="tableta">Tableta/comprimido</option><option value="capsula">Cápsula</option><option value="sobre">Sobre</option><option value="ml">Mililitro (ml)</option><option value="gota">Gota</option><option value="ampolla">Ampolla</option><option value="frasco">Frasco</option></select></div><div class="field"><label for="unidadesPorPresentacion">Unidades base por caja/paquete *</label><input id="unidadesPorPresentacion" type="number" name="unidadesPorPresentacion" min="1" max="100000" value="1" required><small>Ejemplo: una caja de 2 blísteres con 10 tabletas cada uno contiene 20 tabletas.</small></div><div class="field"><label for="unidadesPorBlister">Unidades base por blíster (opcional)</label><input id="unidadesPorBlister" type="number" name="unidadesPorBlister" min="0" max="100000" value="0"><small>Escribe tabletas por blíster si la unidad mínima es Tableta. El número debe dividir exactamente el contenido de la caja.</small><small id="vistaPreviaPresentacion" class="muted" aria-live="polite"></small></div><div class="field"><label for="precio">Precio de venta por unidad base *</label><input id="precio" type="number" name="precio" min="0" step="0.01" required></div></div>
+<p class="muted">Elige una presentación CUM y completa los datos como los ves físicamente. Ejemplo: caja de 2 blísteres con 10 tabletas cada uno: unidad suelta Tableta, 20 unidades mínimas por caja y 2 blísteres por caja. El precio será por tableta. El stock se ingresa como cajas completas, blísteres sueltos y tabletas sueltas.</p><div class="form-grid"><div class="field full"><label for="buscarCatalogoInvima">Buscar en catálogo oficial CUM / INVIMA</label><input id="buscarCatalogoInvima" type="search" placeholder="Nombre, principio activo, registro o CUM" autocomplete="off" aria-controls="resultadosCatalogoInvima"><div id="resultadosCatalogoInvima" class="resultados-medicamento" role="listbox" aria-label="Presentaciones oficiales encontradas" hidden></div><small id="estadoCatalogoInvima" class="muted" aria-live="polite">Busca una presentación para completar el nombre y el registro INVIMA.</small></div><div class="field"><label for="nombre">Nombre *</label><input id="nombre" name="nombre" maxlength="100" required></div><div class="field"><label for="categoria">Grupo farmacológico *</label><input id="categoria" name="categoria" maxlength="50" list="gruposFarmacologicos" placeholder="Ej.: Analgésicos" required><datalist id="gruposFarmacologicos"><%@ include file="/WEB-INF/partials/grupos-farmacologicos.jspf" %></datalist></div><div class="field"><label for="registroInvima">Registro INVIMA</label><input id="registroInvima" name="registroInvima" maxlength="60" placeholder="Ej.: 2024M-000000-R1"></div><div class="field"><label for="lote">Lote</label><input id="lote" name="lote" maxlength="30" placeholder="Código del lote recibido (opcional)"></div><div class="field"><label for="fecha">Fecha de vencimiento</label><input id="fecha" type="date" name="fecha"></div><input id="stock" type="hidden" name="stock" value="0"><div class="field"><label for="cajasStockInicial">Cajas completas en existencia *</label><input id="cajasStockInicial" type="number" min="0" step="1" value="0" required></div><div class="field"><label for="blisteresStockInicial">Blísteres sueltos</label><input id="blisteresStockInicial" type="number" min="0" step="1" value="0"><small>Blísteres que no forman una caja completa.</small></div><div class="field"><label for="unidadesSueltasStockInicial">Unidades sueltas</label><input id="unidadesSueltasStockInicial" type="number" min="0" step="1" value="0"><small>Tabletas, cápsulas u otra unidad mínima fuera del blíster.</small></div><div class="field full"><small id="vistaPreviaStock" class="muted" aria-live="polite"></small></div><div class="field"><label for="unidadBase">Unidad que venderás por separado *</label><select id="unidadBase" name="unidadBase" required><option value="unidad">Unidad</option><option value="caja">Caja</option><option value="paquete">Paquete</option><option value="tableta">Tableta/comprimido</option><option value="capsula">Cápsula</option><option value="sobre">Sobre</option><option value="ml">Mililitro (ml)</option><option value="gota">Gota</option><option value="ampolla">Ampolla</option><option value="frasco">Frasco</option></select></div><div class="field"><label for="unidadesPorPresentacion">Unidades mínimas que trae cada caja *</label><input id="unidadesPorPresentacion" type="number" name="unidadesPorPresentacion" min="1" max="100000" value="1" required><small>Cuenta las unidades más pequeñas: por ejemplo, 20 tabletas por caja.</small></div><div class="field"><label for="blisteresPorCaja">Blísteres/sobres que trae cada caja (opcional)</label><input id="blisteresPorCaja" type="number" min="0" max="100000" step="1" value="0"><input id="unidadesPorBlister" type="hidden" name="unidadesPorBlister" value="0"><small>Escribe cuántos blísteres o sobres vienen dentro de una caja. El sistema calcula las unidades de cada blíster.</small><small id="vistaPreviaPresentacion" class="muted" aria-live="polite"></small></div><div class="field"><label for="precio">Precio por unidad mínima *</label><input id="precio" type="number" name="precio" min="0" step="0.01" required></div></div>
 <div class="form-actions"><button class="btn secondary" type="button" onclick="cerrarFormulario()">Cancelar</button><button class="btn" type="submit">Guardar medicamento</button></div></form></section></div><% } %>
 <script>
-// Explica la relación entre la caja, el blíster y la unidad mínima antes de guardar.
+// Convierte las cajas, blísteres y unidades que la persona ingresa a unidades de inventario.
 function actualizarVistaPreviaPresentacion() {
-  // Lee la unidad mínima configurada para este producto, como tableta o sobre.
+  // Lee la unidad más pequeña que se vende, por ejemplo tableta o cápsula.
   const base = document.getElementById('unidadBase').value;
-  // Lee cuántas unidades mínimas caben en la caja o paquete.
+  // Lee el total de unidades mínimas que trae una caja completa.
   const porCaja = Number(document.getElementById('unidadesPorPresentacion').value) || 0;
-  // Lee cuántas unidades mínimas contiene cada blíster.
-  const porBlister = Number(document.getElementById('unidadesPorBlister').value) || 0;
-  // Traduce los códigos internos de unidad a los nombres que verá la persona.
-  const nombreUnidad = {unidad:'unidad', caja:'caja', paquete:'paquete', tableta:'tableta', capsula:'cápsula', sobre:'sobre', ml:'ml', gota:'gota', ampolla:'ampolla', frasco:'frasco'}[base] || base;
-  // Busca el texto donde se mostrará el ejemplo de conversión.
+  // Lee cuántos blísteres o sobres trae la caja completa.
+  const blisteresPorCaja = Number(document.getElementById('blisteresPorCaja').value) || 0;
+  // Busca el campo oculto que usa el servidor para recibir el factor por blíster.
+  const campoUnidadesPorBlister = document.getElementById('unidadesPorBlister');
+  // Calcula cuántas unidades mínimas trae cada blíster cuando la división es exacta.
+  const porBlister = blisteresPorCaja > 0 && porCaja % blisteresPorCaja === 0 ? porCaja / blisteresPorCaja : 0;
+  // Pasa el factor calculado al campo que guarda la ficha en la base de datos.
+  campoUnidadesPorBlister.value = String(porBlister);
+  // Traduce los códigos internos de unidad a nombres que se puedan leer.
+  const nombreUnidad = {unidad:'unidad',caja:'caja',paquete:'paquete',tableta:'tableta',capsula:'cápsula',sobre:'sobre',ml:'ml',gota:'gota',ampolla:'ampolla',frasco:'frasco'}[base] || base;
+  // Localiza los campos para contar existencia en cajas, blísteres y unidades sueltas.
+  const cajasStock = Number(document.getElementById('cajasStockInicial').value) || 0;
+  const blisteresStock = Number(document.getElementById('blisteresStockInicial').value) || 0;
+  const unidadesSueltasStock = Number(document.getElementById('unidadesSueltasStockInicial').value) || 0;
+  // Convierte las presentaciones contadas a la cantidad total que entiende el inventario.
+  const stockTotal = cajasStock * porCaja + blisteresStock * porBlister + unidadesSueltasStock;
+  // Escribe el total convertido en el campo que espera el servidor.
+  document.getElementById('stock').value = String(stockTotal);
+  // Prepara la cuenta para mostrar cada tipo de empaque que aporta existencias.
+  const partesStock = [];
+  // Añade a la cuenta las cajas completas y su equivalencia en unidades mínimas.
+  if (cajasStock > 0) partesStock.push(cajasStock + ' cajas × ' + porCaja);
+  // Añade a la cuenta los blísteres sueltos y su equivalencia en unidades mínimas.
+  if (blisteresStock > 0) partesStock.push(blisteresStock + ' blísteres × ' + porBlister);
+  // Añade a la cuenta las unidades que no completan un blíster.
+  if (unidadesSueltasStock > 0) partesStock.push(unidadesSueltasStock + ' sueltas');
+  // Muestra la suma completa y su resultado en unidades mínimas.
+  document.getElementById('vistaPreviaStock').textContent = (partesStock.length ? partesStock.join(' + ') + ' = ' : '')
+    + stockTotal + ' ' + nombreUnidad + (stockTotal === 1 ? '' : 's') + ' en inventario.';
+  // Permite ver la conversión entre caja, blíster y unidad mínima.
   const salida = document.getElementById('vistaPreviaPresentacion');
-  // Advierte si se configuró el sobre como unidad mínima aunque se ingresen tabletas por blíster.
-  if (porBlister > 0 && base === 'sobre') {
-    // Aclara que el factor se interpreta en unidades mínimas y no en otra presentación.
-    salida.textContent = 'Ojo: así se configuró unidad mínima “sobre”; ' + porBlister + ' por blíster significa ' + porBlister + ' sobres. Para un blíster de ' + porBlister + ' tabletas, cambia la unidad mínima a Tableta.';
-    // Marca visualmente la advertencia para que se note antes de guardar.
-    salida.classList.add('error');
-    // Detiene la vista previa normal mientras la configuración pueda ser confusa.
-    return;
-  }
-  // Quita la advertencia anterior cuando la configuración ya no tiene ese problema.
+  // Impide guardar una caja cuyo contenido no se pueda repartir en blísteres iguales.
+  const empaqueInvalido = blisteresPorCaja > 0 && (!porCaja || porCaja % blisteresPorCaja !== 0)
+    || blisteresStock > 0 && porBlister === 0;
+  // Explica por qué el número de blísteres no coincide con las unidades por caja.
+  document.getElementById('blisteresPorCaja').setCustomValidity(empaqueInvalido ? 'Las unidades por caja deben dividirse exactamente entre los blísteres por caja, y el blíster debe estar configurado.' : '');
+  // Indica el ejemplo corregible si el contenido del empaque no cuadra.
+  if (empaqueInvalido) { salida.textContent = 'Revisa el contenido: las unidades de la caja deben dividirse exactamente entre sus blísteres.'; salida.classList.add('error'); return; }
+  // Quita el aviso de error cuando la presentación ya es válida.
   salida.classList.remove('error');
-  // Pide el contenido de la caja antes de calcular las equivalencias.
-  if (!porCaja) { salida.textContent = 'Indica cuántas unidades mínimas trae la caja.'; return; }
-  // Forma la equivalencia entre una caja y su cantidad de unidades mínimas.
+  // Muestra una instrucción mientras falte indicar cuántas unidades trae la caja.
+  if (!porCaja) { salida.textContent = 'Escribe cuántas unidades mínimas trae una caja.'; return; }
+  // Forma la equivalencia principal entre una caja y sus unidades mínimas.
   const textoCaja = '1 caja = ' + porCaja + ' ' + nombreUnidad + (porCaja === 1 ? '' : 's');
-  // Si el blíster divide exactamente la caja, muestra también cuántos blísteres contiene.
-  salida.textContent = porBlister > 0 && porCaja % porBlister === 0
-    ? textoCaja + ' = ' + (porCaja / porBlister) + ' blíster(es) de ' + porBlister + ' ' + nombreUnidad + '(es). Precio de venta: por ' + nombreUnidad + '.'
-    : textoCaja + '. El precio de venta se registra por ' + nombreUnidad + '.';
+  // Añade cuántos blísteres vienen en la caja y cuántas unidades trae cada uno.
+  salida.textContent = blisteresPorCaja > 0
+    ? textoCaja + ' = ' + blisteresPorCaja + (blisteresPorCaja === 1 ? ' blíster' : ' blísteres') + ' de ' + porBlister + ' ' + nombreUnidad + (porBlister === 1 ? '' : 's') + '. El precio se registra por ' + nombreUnidad + '.'
+    : textoCaja + '. El precio se registra por ' + nombreUnidad + '.';
 }
-// Actualiza la vista previa cuando cambia la unidad mínima.
+// Recalcula las equivalencias al cambiar la unidad mínima.
 document.getElementById('unidadBase').addEventListener('change', actualizarVistaPreviaPresentacion);
-// Actualiza la vista previa cuando cambia el contenido de la caja.
+// Recalcula los factores cuando se cambia el total de unidades por caja.
 document.getElementById('unidadesPorPresentacion').addEventListener('input', actualizarVistaPreviaPresentacion);
-// Actualiza la vista previa cuando cambia el contenido del blíster.
-document.getElementById('unidadesPorBlister').addEventListener('input', actualizarVistaPreviaPresentacion);
-// Muestra la conversión inicial al abrir la página.
+// Recalcula las unidades por blíster cuando se cambia cuántos blísteres trae la caja.
+document.getElementById('blisteresPorCaja').addEventListener('input', actualizarVistaPreviaPresentacion);
+// Recalcula el stock al cambiar las cajas completas existentes.
+document.getElementById('cajasStockInicial').addEventListener('input', actualizarVistaPreviaPresentacion);
+// Recalcula el stock al cambiar los blísteres sueltos existentes.
+document.getElementById('blisteresStockInicial').addEventListener('input', actualizarVistaPreviaPresentacion);
+// Recalcula el stock al cambiar las unidades que están sueltas.
+document.getElementById('unidadesSueltasStockInicial').addEventListener('input', actualizarVistaPreviaPresentacion);
+// Dibuja las equivalencias iniciales al cargar la pantalla.
 actualizarVistaPreviaPresentacion();
+// Desglosa una existencia guardada para mostrarla en cajas, blísteres y unidades sueltas.
+function cargarExistenciaEnPresentaciones(stock, porCaja, porBlister) {
+  // Calcula cuántas cajas completas hay en el stock actual.
+  const cajas = porCaja > 0 ? Math.floor(stock / porCaja) : 0;
+  // Separa las unidades que sobran después de contar las cajas completas.
+  const restanteTrasCajas = stock - cajas * porCaja;
+  // Calcula los blísteres enteros que caben en las unidades restantes.
+  const blisteres = porBlister > 0 ? Math.floor(restanteTrasCajas / porBlister) : 0;
+  // Calcula las unidades mínimas que quedan fuera de caja y blíster.
+  const unidadesSueltas = restanteTrasCajas - blisteres * porBlister;
+  // Coloca el desglose en los campos que la persona puede entender y ajustar.
+  document.getElementById('cajasStockInicial').value = String(cajas);
+  document.getElementById('blisteresStockInicial').value = String(blisteres);
+  document.getElementById('unidadesSueltasStockInicial').value = String(unidadesSueltas);
+}
 // Filtra las filas de la tabla mientras se escribe en el buscador.
 document.getElementById('buscar').addEventListener('input', function () {
     const termino = this.value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('es');
@@ -136,10 +180,20 @@ function abrirFormulario() {
 }
 // Carga los datos seleccionados en el formulario de edición.
 function editarDesdeBoton(boton) {
-  ['id','nombre','categoria','registroInvima','lote','fecha','stock','precio'].forEach(campo => document.getElementById(campo).value = boton.dataset[campo] || '');
+  // Copia a la ventana de edición los datos generales, el lote y el precio.
+  ['id','nombre','categoria','registroInvima','lote','fecha','precio'].forEach(campo => document.getElementById(campo).value = boton.dataset[campo] || '');
+  // Restaura la unidad mínima que usa esta ficha para controlar existencias.
   document.getElementById('unidadBase').value = boton.dataset.unidadBase || 'unidad';
+  // Restaura cuántas unidades mínimas representa una caja de esta presentación.
   document.getElementById('unidadesPorPresentacion').value = boton.dataset.unidadesPorPresentacion || '1';
-  document.getElementById('unidadesPorBlister').value = boton.dataset.unidadesPorBlister || '0';
+  // Lee el factor de unidades mínimas por blíster que ya está guardado.
+  const porBlister = Number(boton.dataset.unidadesPorBlister) || 0;
+  // Calcula cuántos blísteres trae la caja para mostrarlos en el nuevo formulario.
+  document.getElementById('blisteresPorCaja').value = porBlister > 0
+    ? String(Number(boton.dataset.unidadesPorPresentacion) / porBlister) : '0';
+  // Desglosa el stock guardado en cajas completas, blísteres y unidades sueltas.
+  cargarExistenciaEnPresentaciones(Number(boton.dataset.stock) || 0,
+    Number(boton.dataset.unidadesPorPresentacion) || 1, porBlister);
   document.getElementById('catalogoMedicamentoId').value = boton.dataset.catalogoId || '';
   document.getElementById('buscarCatalogoInvima').value = '';
   document.getElementById('resultadosCatalogoInvima').hidden = true;
