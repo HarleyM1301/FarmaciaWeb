@@ -58,7 +58,12 @@ public class MovimientoServlet extends HttpServlet {
                 throw new IllegalArgumentException("Tipo de operación inválido.");
             }
             // Devuelve al usuario a la lista del módulo con confirmación de éxito.
-            response.sendRedirect(destino + "?estado=ok");
+            String resultadoOk=destino + "?estado=ok";
+            if("compra".equals(tipo)){
+                String borrador=request.getParameter("borradorId");
+                if(borrador!=null&&borrador.matches("[0-9a-fA-F-]{36}"))resultadoOk+="&borradorId="+borrador;
+            }
+            response.sendRedirect(resultadoOk);
         } catch (Exception e) {
             // Registra el error completo en Tomcat para facilitar el diagnóstico.
             getServletContext().log("No se pudo guardar la operación de farmacia", e);
@@ -122,9 +127,10 @@ public class MovimientoServlet extends HttpServlet {
         String[] factoresBlister = request.getParameterValues("unidadesPorBlister");
         String[] catalogos = request.getParameterValues("catalogoMedicamentoId");
         String[] registrosInvima = request.getParameterValues("registroInvima");
+        String[] codigosBarras = request.getParameterValues("codigoBarras");
         // Confirma que haya filas y que todas las columnas tengan la misma cantidad de valores.
         if (productos == null || productos.length == 0 || productos.length > 500
-                || !mismoTamanio(productos.length, nombres, categorias, preciosVenta, actualizarPrecios, lotes, vencimientos, cantidades, costos, unidades, factores, factoresBlister, catalogos, registrosInvima)) {
+                || !mismoTamanio(productos.length, nombres, categorias, preciosVenta, actualizarPrecios, lotes, vencimientos, cantidades, costos, unidades, factores, factoresBlister, catalogos, registrosInvima, codigosBarras)) {
             throw new IllegalArgumentException("La factura debe tener entre 1 y 500 líneas completas.");
         }
 
@@ -166,6 +172,7 @@ public class MovimientoServlet extends HttpServlet {
             String idCatalogo = limpiar(catalogos[i]);
             linea.setCatalogoMedicamentoId(idCatalogo.isBlank() ? null : Long.valueOf(idCatalogo));
             linea.setRegistroInvima(limpiar(registrosInvima[i]));
+            linea.setCodigoBarras(limpiar(codigosBarras[i]));
             // Añade la línea preparada a la colección de recepción.
             lineas.add(linea);
         }
@@ -209,7 +216,7 @@ public class MovimientoServlet extends HttpServlet {
             extension = enviado.substring(enviado.lastIndexOf('.')).toLowerCase(java.util.Locale.ROOT);
         }
         // Define las extensiones de documentos e imágenes admitidas en una recepción.
-        List<String> permitidas = List.of(".pdf", ".xml", ".csv", ".txt", ".xlsx", ".xls", ".jpg", ".jpeg", ".png");
+        List<String> permitidas = List.of(".pdf", ".xml", ".zip", ".csv", ".txt", ".xlsx", ".xls", ".jpg", ".jpeg", ".png");
         // Rechaza formatos que no estén incluidos en la lista permitida.
         if (!permitidas.contains(extension)) throw new IllegalArgumentException("Formato no admitido. Usa PDF, XML, Excel, CSV o imagen.");
         // Resuelve el directorio privado de facturas fuera del contenido web público.

@@ -17,6 +17,8 @@
       let factura;
       if (['csv', 'txt'].includes(extension)) factura = leerCSV(await leerTexto(file));
       else if (extension === 'xml') factura = leerXML(await leerTexto(file));
+      else if (extension === 'zip') factura = await leerZIP(file);
+      else if (extension === 'pdf') factura = await leerPDF(file);
       else if (['jpg', 'jpeg', 'png'].includes(extension)) {
         mostrarEstado('Leyendo la imagen en este navegador. Puede tardar unos segundos…');
         const texto = await leerImagen(file);
@@ -25,7 +27,7 @@
         factura = leerOCR(texto);
       }
       else {
-        mostrarEstado('El archivo quedó adjunto. Este formato no tiene lectura automática: completa los productos y revisa los datos antes de confirmar.');
+        mostrarEstado('El archivo quedó adjunto. Este formato no tiene lectura automática: pega la tabla de productos o agrégalos manualmente.');
         return;
       }
       completarEncabezado(factura);
@@ -36,16 +38,58 @@
       const contenedor = document.getElementById('lineas');
       contenedor.replaceChildren();
       factura.lineas.forEach(linea => agregarLinea({ ...linea, origen: factura.origen || 'archivo' }));
+      window.guardarRecepcionBorrador?.();
       const pendientesOCR = factura.origen === 'ocr' && factura.lineas.some(linea => !linea.cantidad || !linea.costo);
       const monedaAjena = factura.moneda && factura.moneda !== 'COP';
       const resumen = pendientesOCR
         ? `Detecté ${factura.lineas.length} producto(s), pero no pude separar con seguridad todas las cantidades y costos. Completa esos campos y confirma cada medicamento antes de guardar.`
         : `Detecté ${factura.lineas.length} producto(s). Revisa nombres, cantidades, costos y datos de factura antes de confirmar.`;
-      mostrarEstado(resumen + (monedaAjena ? ` La factura indica ${factura.moneda}; convierte los importes a COP antes de confirmar, porque el sistema no convierte monedas.` : ''), pendientesOCR || monedaAjena ? 'error' : 'ok');
+      mostrarEstado(resumen + (factura.advertencia ? ` ${factura.advertencia}` : '') + (monedaAjena ? ` La factura indica ${factura.moneda}; convierte los importes a COP antes de confirmar, porque el sistema no convierte monedas.` : ''), pendientesOCR || monedaAjena || Boolean(factura.advertencia) ? 'error' : 'ok');
     } catch (error) {
       mostrarEstado(`No pude leer la factura (${error.message}). El archivo quedó adjunto y puedes completar la recepción manualmente.`, 'error');
     }
   });
+
+  // Extrae texto de PDF digitales o renderiza páginas localmente para usar el OCR español incluido.
+  async function leerPDF(file) {
+    mostrarEstado('Procesando el PDF localmente…');
+    const datos = new FormData(); datos.append('archivo', file, file.name);
+    const contexto = document.getElementById('ocr-runtime').dataset.context;
+    const respuesta = await fetch(`${contexto}/FacturaPdfServlet`, { method: 'POST', body: datos, headers: { Accept: 'application/json' } });
+    const resultado = await respuesta.json();
+    if (!respuesta.ok) throw new Error(resultado.error || 'el servidor no pudo procesar el PDF');
+    let texto = resultado.texto || '';
+    if (resultado.paginas?.length) {
+      for (let i = 0; i < resultado.paginas.length; i++) {
+        const pagina = resultado.paginas[i];
+        mostrarEstado(`Leyendo página ${i + 1} de ${resultado.paginas.length} con OCR local…`);
+        const imagen = await fetch(pagina.imagen).then(r => r.blob());
+        texto += `\n${await leerImagen(new File([imagen], `factura-pagina-${pagina.pagina}.jpg`, { type: 'image/jpeg' }))}`;
+      }
+    }
+    const advertencia = resultado.totalPaginas > (resultado.paginas?.length || 0) && resultado.paginas?.length
+      ? `El PDF tiene ${resultado.totalPaginas} páginas; se leyeron las primeras ${resultado.paginas.length}. Revisa el resto en el archivo original.` : '';
+    if (!texto.trim()) throw new Error('no se encontró texto legible en el PDF');
+    document.getElementById('textoOCR').value = texto;
+    document.getElementById('ocrReview').hidden = false;
+    const factura = leerOCR(texto);
+    factura.origen = 'ocr';
+    factura.advertencia = advertencia;
+    return factura;
+  }
+
+  // Abre el XML DIAN de AttachedDocument o el PDF que algunos proveedores incluyen en un ZIP.
+  async function leerZIP(file) {
+    mostrarEstado('Abriendo factura electrónica del ZIP…');
+    const datos = new FormData(); datos.append('archivo', file, file.name);
+    const contexto = document.getElementById('ocr-runtime').dataset.context;
+    const respuesta = await fetch(`${contexto}/FacturaZipServlet`, { method: 'POST', body: datos, headers: { Accept: 'application/json' } });
+    const resultado = await respuesta.json();
+    if (!respuesta.ok) throw new Error(resultado.error || 'el ZIP no contiene una factura reconocible');
+    if (resultado.tipo === 'xml') return leerXML(resultado.contenido);
+    const bytes = Uint8Array.from(atob(resultado.contenido), c => c.charCodeAt(0));
+    return leerPDF(new File([bytes], 'factura-adjunta.pdf', { type: 'application/pdf' }));
+  }
 
   // Completa cabecera sin borrar datos que la persona ya haya escrito.
   function completarEncabezado(factura) {
@@ -207,6 +251,7 @@
     }
     document.getElementById('lineas').replaceChildren();
     factura.lineas.forEach(linea => agregarLinea({ ...linea, origen: factura.origen || 'ocr' }));
+    window.guardarRecepcionBorrador?.();
     const monedaAjena = factura.moneda && factura.moneda !== 'COP';
     mostrarEstado(`Detecté ${factura.lineas.length} producto(s) en el texto corregido. Revisa toda la información antes de guardar.`
       + (monedaAjena ? ` La factura indica ${factura.moneda}; convierte los importes a COP antes de confirmar.` : ''), monedaAjena ? 'error' : 'ok');
@@ -234,6 +279,7 @@
       costo: buscar('costo', 'cost', 'precio', 'price', 'precio unitario', 'unit price', 'unit cost', 'costo unitario'),
       categoria: buscar('grupo farmacologico', 'grupo', 'categoria', 'categoría'),
       lote: buscar('lote', 'lot', 'batch', 'batch number'),
+      codigoBarras: buscar('codigo de barras', 'codigo barras', 'ean', 'gtin', 'barcode', 'upc'),
       vencimiento: buscar('vencimiento', 'fecha vencimiento', 'expiry', 'expiration', 'expiry date'),
       proveedor: buscar('proveedor', 'supplier', 'vendor'),
       numero: buscar('factura', 'numero factura', 'invoice', 'invoice number', 'invoice id'),
@@ -246,7 +292,7 @@
     }
     const lineasImportadas = filas.map(fila => ({
       nombre: celda(fila, columnas.nombre), cantidad: unidadesISO(celda(fila, columnas.cantidad)),
-      costo: numeroISO(celda(fila, columnas.costo)), lote: celda(fila, columnas.lote),
+      costo: numeroISO(celda(fila, columnas.costo)), lote: celda(fila, columnas.lote), codigoBarras: celda(fila, columnas.codigoBarras),
       categoria: celda(fila, columnas.categoria),
       vencimiento: fechaISO(celda(fila, columnas.vencimiento))
     })).filter(fila => fila.nombre);
@@ -273,14 +319,33 @@
 
   // Lee etiquetas comunes de XML UBL y de exportaciones XML de proveedores.
   function leerXML(texto) {
-    const xml = new DOMParser().parseFromString(texto, 'application/xml');
+    let xml = new DOMParser().parseFromString(texto, 'application/xml');
     if (xml.querySelector('parsererror')) throw new Error('el XML no es válido');
-    const lineasXML = [...xml.getElementsByTagName('*')].filter(n =>
+    let lineasXML = [...xml.getElementsByTagName('*')].filter(n =>
       ['invoiceline', 'lineitem', 'itemline', 'detallefactura'].includes(normalizar(n.localName || n.nodeName)));
+    // DIAN puede entregar un AttachedDocument que contiene la factura UBL como texto o base64.
+    if (!lineasXML.length) {
+      const descripciones = [...xml.getElementsByTagName('*')].filter(n => ['description','documentdescription'].includes(normalizar(n.localName || n.nodeName)));
+      for (const nodo of descripciones) {
+        const incrustado = nodo.textContent.trim();
+        const candidatos = [incrustado];
+        if (/^[A-Za-z0-9+/=\r\n]+$/.test(incrustado) && incrustado.length > 100) {
+          try { candidatos.push(new TextDecoder().decode(Uint8Array.from(atob(incrustado.replace(/\s/g,'')), c => c.charCodeAt(0)))); } catch (error) { /* La descripción puede contener XML escapado y no base64. */ }
+        }
+        const facturaAnidada = candidatos.find(c => /<(?:\w+:)?Invoice\b/i.test(c));
+        if (!facturaAnidada) continue;
+        const anidado = new DOMParser().parseFromString(facturaAnidada, 'application/xml');
+        if (anidado.querySelector('parsererror')) continue;
+        const candidatas = [...anidado.getElementsByTagName('*')].filter(n => normalizar(n.localName || n.nodeName) === 'invoiceline');
+        if (candidatas.length) { xml = anidado; lineasXML = candidatas; break; }
+      }
+    }
+    if (!lineasXML.length) throw new Error('el XML no contiene renglones de factura reconocibles');
     const lineas = lineasXML.map(n => ({
       nombre: buscarTexto(n, ['description', 'itemname', 'name', 'descripcion', 'nombreproducto']),
       cantidad: unidadesISO(buscarTexto(n, ['invoicedquantity', 'quantity', 'qty', 'cantidad'])),
       costo: numeroISO(buscarTexto(n, ['priceamount', 'unitprice', 'unitcost', 'precio', 'costo'])),
+      codigoBarras: buscarCodigoBarras(n),
       lote: buscarTexto(n, ['lotid', 'lotnumber', 'batchnumber', 'lote']),
       vencimiento: fechaISO(buscarTexto(n, ['expirydate', 'expirationdate', 'fechavencimiento']))
     })).filter(linea => linea.nombre);
@@ -300,6 +365,15 @@
     return [...raiz.getElementsByTagName('*')].find(n => buscadas.includes(normalizar(n.localName || n.nodeName)) && n.textContent.trim())?.textContent.trim() || '';
   }
 
+  // Lee GTIN/EAN solo de identificadores estándar del artículo, sin confundirlos con el folio de factura.
+  function buscarCodigoBarras(raiz) {
+    return [...raiz.getElementsByTagName('*')].find(n => {
+      const nombre = normalizar(n.localName || n.nodeName);
+      const padre = normalizar(n.parentNode?.localName || n.parentNode?.nodeName);
+      const valor = (n.textContent || '').replace(/\s/g, '');
+      return nombre === 'id' && ['standarditemidentification','itemidentification'].includes(padre) && /^[0-9]{8,14}$/.test(valor);
+    })?.textContent.trim() || '';
+  }
   // Devuelve el primer valor repetido de una columna de cabecera del CSV.
   // Toma el primer dato disponible de una columna opcional del CSV.
   function valorComun(filas, indice) { return indice < 0 ? '' : (filas.find(f => celda(f, indice).trim()) || [])[indice] || ''; }

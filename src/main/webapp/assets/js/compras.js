@@ -93,6 +93,8 @@ function agregarLinea(datos={}) {
   const mensaje = mensajes.join(' ');
   const requiereRevision = mensajes.some(texto => /posible coincidencia|no encontré|no pudo identificar/i.test(texto));
   mostrarCoincidencia(fila, mensaje, requiereRevision);
+  // Copia a la fila el código de barras importado y busca su producto asociado.
+  if (datos.codigoBarras) { const campoCodigo=fila.querySelector('.codigo-barras'); campoCodigo.value=datos.codigoBarras; window.resolverCodigoBarras?.(campoCodigo); }
   return fila;
 }
 
@@ -111,6 +113,8 @@ function importarTablaPegada() {
     cantidad: buscar('cantidad', 'unidades', 'qty'),
     costo: buscar('costo', 'costo unitario', 'costo por caja', 'precio compra', 'precio unitario', 'valor unitario'),
     lote: buscar('lote', 'batch'),
+    // Reconoce códigos de barras en columnas con encabezados comunes.
+    codigoBarras: buscar('codigo barras', 'codigo de barras', 'ean', 'gtin', 'barcode', 'upc'),
     vencimiento: buscar('vencimiento', 'fecha vencimiento', 'fecha de vencimiento', 'expiry'),
     precioVenta: buscar('precio publico', 'precio al publico', 'precio venta', 'precio de venta', 'pvp'),
     categoria: buscar('grupo farmacologico', 'grupo', 'categoria', 'categoría'),
@@ -137,7 +141,8 @@ function importarTablaPegada() {
     }
     const fila = agregarLinea({
       nombre, cantidad: String(cantidad), costo: String(costo),
-      lote: valores[columnas.lote] || '', vencimiento: fechaISO(valores[columnas.vencimiento] || ''),
+      // Pasa el código importado a la fila para asociarlo con el medicamento.
+      lote: valores[columnas.lote] || '', codigoBarras: (valores[columnas.codigoBarras] || '').trim(), vencimiento: fechaISO(valores[columnas.vencimiento] || ''),
       categoria: (valores[columnas.categoria] || '').trim(),
       unidadBase: valores[columnas.unidadBase] || '',
       unidadesPorPresentacion: numeroPegado(valores[columnas.factor]) || '', origen: 'pegado'
@@ -160,7 +165,10 @@ function importarTablaPegada() {
   if (!agregadas) { mostrarEstado('No encontré filas completas. Usa columnas Producto, Cantidad y Costo, o el orden indicado en el ejemplo.', 'error'); return; }
   campo.value = '';
   const aviso = errores.length ? ' Se omitieron filas incompletas: ' + errores.join(', ') + '.' : '';
+  // Informa cuántos productos se importaron y señala las filas incompletas.
   mostrarEstado('Se agregaron ' + agregadas + ' productos. Revisa las coincidencias, presentación, lotes y precios antes de confirmar.' + aviso, errores.length ? 'error' : 'ok');
+  // Guarda inmediatamente los productos importados en el borrador local.
+  window.guardarRecepcionBorrador?.();
 }
 
 // Divide una fila tabulada o delimitada respetando campos entre comillas.
@@ -258,6 +266,9 @@ function actualizarProductoNuevo(select) {
   const precio = fila.querySelector('.precio-venta-nuevo');
   const blisterWrap = fila.querySelector('.blister-nuevo-wrap');
   const blisterField = fila.querySelector('.blister-factor-nuevo');
+  // Guarda referencias a la unidad mínima y al factor de la presentación elegida.
+  const unidadField = fila.querySelector('.unidad-base');
+  const factorField = fila.querySelector('.factor-empaque');
   const precioNuevo = fila.querySelector('.precio-nuevo-wrap');
   const precioExistente = fila.querySelector('.precio-existente');
   const catalogoWrap = fila.querySelector('.catalogo-invima-wrap');
@@ -271,6 +282,9 @@ function actualizarProductoNuevo(select) {
   blisterWrap.hidden = !nuevo;
   blisterField.disabled = !nuevo;
   precioExistente.hidden = nuevo || !select.value;
+  // Bloquea la presentación de productos existentes para evitar cambiar sus equivalencias al recibir.
+  unidadField.disabled = !nuevo && Boolean(select.value);
+  factorField.readOnly = !nuevo && Boolean(select.value);
   nombre.required = nuevo;
   precio.required = nuevo;
   if (nuevo || !select.value) {
@@ -285,8 +299,8 @@ function actualizarProductoNuevo(select) {
 
   // Copia unidad y factor desde el catálogo cuando se eligió un medicamento existente.
   if (opcion?.dataset.unidad) {
-    fila.querySelector('.unidad-base').value = opcion.dataset.unidad;
-    fila.querySelector('.factor-empaque').value = opcion.dataset.factor || 1;
+    unidadField.value = opcion.dataset.unidad;
+    factorField.value = opcion.dataset.factor || 1;
   }
   if (!nuevo && select.value) blisterField.value = opcion.dataset.blisterFactor || '0';
   if (!nuevo && select.value) {
@@ -344,7 +358,34 @@ function actualizarSugerenciasPrecio(){const margen=document.getElementById('mar
 // Deja constancia si el usuario modifica manualmente el precio propuesto.
 document.addEventListener('input',event=>{if(event.target.matches('.precio-venta-actual'))event.target.dataset.modificado='true';if(event.target.matches('.costo-factura,.cantidad-factura,.factor-empaque')){sugerirPrecio(event.target.closest('tr'));actualizarRevision()}});
 // Muestra la recepción en cajas, blísteres y unidades base para evitar conversiones ocultas.
-function actualizarConversion(fila){if(!fila)return;const cantidad=Number(fila.querySelector('.cantidad-factura').value)||0;const factor=Number(fila.querySelector('.factor-empaque').value)||0;const blister=Number(fila.querySelector('.blister-factor-nuevo').value)||0;const base=fila.querySelector('.unidad-base').value;const singular={unidad:'unidad',caja:'caja',paquete:'paquete',tableta:'tableta',capsula:'cápsula',sobre:'sobre',ml:'ml',gota:'gota',ampolla:'ampolla',frasco:'frasco'}[base]||base;const total=cantidad*factor;let detalle='Inventario: '+total+' '+singular+(total===1?'':'s');if(factor>1&&blister>0&&factor%blister===0)detalle+=' ('+(factor/blister)+' blíster'+(factor/blister===1?'':'es')+' por caja)';fila.querySelector('.conversion-preview').textContent=detalle;sugerirPrecio(fila);actualizarRevision()}
+function actualizarConversion(fila) {
+  // No calcula la conversión si todavía no existe una fila de compra.
+  if (!fila) return;
+  // Lee la cantidad de cajas, el factor por caja y el factor opcional por blíster.
+  const cantidad = Number(fila.querySelector('.cantidad-factura').value) || 0;
+  const factor = Number(fila.querySelector('.factor-empaque').value) || 0;
+  const blister = Number(fila.querySelector('.blister-factor-nuevo').value) || 0;
+  // Lee la unidad mínima elegida para contabilizar las existencias.
+  const base = fila.querySelector('.unidad-base').value;
+  // Convierte el código de unidad a una etiqueta singular legible.
+  const singular = {unidad:'unidad',caja:'caja',paquete:'paquete',tableta:'tableta',capsula:'cápsula',sobre:'sobre',ml:'ml',gota:'gota',ampolla:'ampolla',frasco:'frasco'}[base] || base;
+  // Multiplica las cajas recibidas por las unidades mínimas que trae cada una.
+  const total = cantidad * factor;
+  // Describe el contenido que se aplicará por cada caja o paquete.
+  const empaque = factor === 1 ? 'unidad base' : `${factor} ${singular}${factor === 1 ? '' : 's'} por caja/paquete`;
+  // Forma el detalle de inventario tanto si ya hay cantidad como si falta ingresarla.
+  let detalle = cantidad
+    ? `${cantidad} caja${cantidad === 1 ? '' : 's'} × ${factor} = ${total} ${singular}${total === 1 ? '' : 's'} al inventario (${empaque}).`
+    : `Cada caja/paquete: ${empaque}.`;
+  // Añade cuántos blísteres contiene cada caja cuando la división es exacta.
+  if (factor > 1 && blister > 0 && factor % blister === 0) detalle += ` (${factor / blister} blísteres por caja)`;
+  // Muestra la equivalencia para que se revise antes de guardar la recepción.
+  fila.querySelector('.conversion-preview').textContent = detalle;
+  // Actualiza la sugerencia de precio según el costo por presentación ingresado.
+  sugerirPrecio(fila);
+  // Actualiza la comparación entre las líneas y el total de la factura.
+  actualizarRevision();
+}
 // Compara el total leído de la factura con la suma de cantidades por costo unitario de presentación.
 function actualizarRevision(){const suma=[...document.querySelectorAll('#lineas .linea-compra')].reduce((total,fila)=>total+(Number(fila.querySelector('.cantidad-factura').value)||0)*(Number(fila.querySelector('.costo-factura').value)||0),0);const informado=Number(document.getElementById('totalFactura').value);const salida=document.getElementById('resumenImportes');if(!suma){salida.textContent='Completa cantidades y costos para calcular el total de las líneas.';return}const formato=v=>new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:2}).format(v);salida.textContent=`Total de líneas: ${formato(suma)}. `+(informado>0?`Total de factura: ${formato(informado)}. Diferencia: ${formato(informado-suma)}.`:'Ingresa el total impreso en la factura para compararlo.');salida.dataset.calculado=suma.toFixed(2)}
 // Mantiene actualizado el total comparativo mientras se escribe el valor de la factura.
@@ -364,6 +405,6 @@ function fechaISO(valor){const s=(valor||'').trim();if(/^\d{4}-\d{2}-\d{2}/.test
 // Convierte valores con separadores decimales locales a un número para el formulario.
 function numeroISO(valor){let s=String(valor??'').replace(/[^\d,.-]/g,'');if(s.includes(',')&&s.includes('.'))s=s.lastIndexOf(',')>s.lastIndexOf('.')?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');else if(s.includes(','))s=s.replace(',','.');return /^-?\d+(\.\d+)?$/.test(s)?s:''}
 // Serializa cada producto en una línea simple o en varias asignaciones de lotes.
-document.getElementById('formCompra').addEventListener('submit',function(event){const salida=document.getElementById('lineasSerializadas');salida.replaceChildren();let totalLineas=0;let totalCalculado=0;for(const fila of document.querySelectorAll('#lineas .linea-compra')){const select=fila.querySelector('.producto-select');const cantidad=Number(fila.querySelector('.cantidad-factura').value);const costo=Number(fila.querySelector('.costo-factura').value);totalCalculado+=cantidad*costo;const aplicarPrecio=select.value==='nuevo'||fila.querySelector('.actualizar-precio').checked;const precioFinal=select.value==='nuevo'?fila.querySelector('.precio-venta-nuevo').value:fila.querySelector('.precio-venta-actual').value;const lotesFila=fila.nextElementSibling;let partes=[{lote:'',vencimiento:'',cantidad}];if(fila.querySelector('.control-lotes').checked){partes=[...lotesFila.querySelectorAll('.lote-detalle')].map(d=>({lote:d.querySelector('.dato-lote').value,vencimiento:d.querySelector('.dato-vencimiento').value,cantidad:Number(d.querySelector('.dato-cantidad-lote').value)}));const sum=partes.reduce((s,p)=>s+p.cantidad,0);if(!partes.length||partes.some(p=>!Number.isInteger(p.cantidad)||p.cantidad<1)||sum!==cantidad){event.preventDefault();mostrarEstado('Las cantidades distribuidas por lote deben sumar las cajas o paquetes de la factura.','error');return}}totalLineas+=partes.length;for(const parte of partes){const valores={productoId:select.value,nombreNuevo:fila.querySelector('.nombre-nuevo').value,categoriaNueva:fila.querySelector('.categoria-nueva').value,precioVenta:precioFinal,actualizarPrecioVenta:aplicarPrecio?'true':'false',lote:parte.lote,vencimiento:parte.vencimiento,cantidad:parte.cantidad,costo:costo,unidadBase:fila.querySelector('.unidad-base').value,factorEmpaque:fila.querySelector('.factor-empaque').value,unidadesPorBlister:fila.querySelector('.blister-factor-nuevo').value,catalogoMedicamentoId:fila.querySelector('.catalogo-invima-id').value,registroInvima:fila.querySelector('.registro-invima').value};for(const [nombre,valor] of Object.entries(valores)){const campo=document.createElement('input');campo.type='hidden';campo.name=nombre;campo.value=valor;salida.appendChild(campo)}}}if(totalLineas>500){event.preventDefault();mostrarEstado('La recepción admite hasta 500 asignaciones de producto y lote.','error');return}const totalFactura=Number(document.getElementById('totalFactura').value);const diferencia=totalFactura>0&&Math.abs(totalFactura-totalCalculado)>1;const aceptada=!diferencia||confirm(`El total de las líneas (${totalCalculado.toFixed(2)}) difiere del total de la factura (${totalFactura.toFixed(2)}). ¿Deseas continuar?`);document.getElementById('diferenciaConfirmada').value=aceptada?'true':'false';if(!aceptada){event.preventDefault();salida.replaceChildren()}});
+document.getElementById('formCompra').addEventListener('submit',function(event){const salida=document.getElementById('lineasSerializadas');salida.replaceChildren();let totalLineas=0;let totalCalculado=0;for(const fila of document.querySelectorAll('#lineas .linea-compra')){const select=fila.querySelector('.producto-select');const cantidad=Number(fila.querySelector('.cantidad-factura').value);const costo=Number(fila.querySelector('.costo-factura').value);totalCalculado+=cantidad*costo;const aplicarPrecio=select.value==='nuevo'||fila.querySelector('.actualizar-precio').checked;const precioFinal=select.value==='nuevo'?fila.querySelector('.precio-venta-nuevo').value:fila.querySelector('.precio-venta-actual').value;const lotesFila=fila.nextElementSibling;let partes=[{lote:'',vencimiento:'',cantidad}];if(fila.querySelector('.control-lotes').checked){partes=[...lotesFila.querySelectorAll('.lote-detalle')].map(d=>({lote:d.querySelector('.dato-lote').value,vencimiento:d.querySelector('.dato-vencimiento').value,cantidad:Number(d.querySelector('.dato-cantidad-lote').value)}));const sum=partes.reduce((s,p)=>s+p.cantidad,0);if(!partes.length||partes.some(p=>!Number.isInteger(p.cantidad)||p.cantidad<1)||sum!==cantidad){event.preventDefault();mostrarEstado('Las cantidades distribuidas por lote deben sumar las cajas o paquetes de la factura.','error');return}}totalLineas+=partes.length;for(const parte of partes){const valores={productoId:select.value,nombreNuevo:fila.querySelector('.nombre-nuevo').value,categoriaNueva:fila.querySelector('.categoria-nueva').value,precioVenta:precioFinal,actualizarPrecioVenta:aplicarPrecio?'true':'false',lote:parte.lote,vencimiento:parte.vencimiento,cantidad:parte.cantidad,costo:costo,unidadBase:fila.querySelector('.unidad-base').value,factorEmpaque:fila.querySelector('.factor-empaque').value,unidadesPorBlister:fila.querySelector('.blister-factor-nuevo').value,catalogoMedicamentoId:fila.querySelector('.catalogo-invima-id').value,registroInvima:fila.querySelector('.registro-invima').value,codigoBarras:fila.querySelector('.codigo-barras').value};for(const [nombre,valor] of Object.entries(valores)){const campo=document.createElement('input');campo.type='hidden';campo.name=nombre;campo.value=valor;salida.appendChild(campo)}}}if(totalLineas>500){event.preventDefault();mostrarEstado('La recepción admite hasta 500 asignaciones de producto y lote.','error');return}const totalFactura=Number(document.getElementById('totalFactura').value);const diferencia=totalFactura>0&&Math.abs(totalFactura-totalCalculado)>1;const aceptada=!diferencia||confirm(`El total de las líneas (${totalCalculado.toFixed(2)}) difiere del total de la factura (${totalFactura.toFixed(2)}). ¿Deseas continuar?`);document.getElementById('diferenciaConfirmada').value=aceptada?'true':'false';if(!aceptada){event.preventDefault();salida.replaceChildren()}});
 // Cierra el diálogo de recepción.
 function cerrar(){document.getElementById('modal').classList.remove('open')}

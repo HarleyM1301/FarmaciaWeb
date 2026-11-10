@@ -48,7 +48,7 @@ public class AutenticacionFilter implements Filter {
         // Determina qué perfiles pueden registrar una venta.
         boolean puedeVender = gestionCompleta || rol.equals("usuario") || rol.equals("cajero") || rol.equals("vendedor");
         // Señala rutas de compra y administración que requieren permisos elevados.
-        boolean requiereGestion = ruta.equals("/compras.jsp")
+        boolean requiereGestion = ruta.equals("/compras.jsp") || ruta.equals("/FacturaPdfServlet") || ruta.equals("/FacturaZipServlet")
                 || ruta.equals("/reportes.jsp") || ruta.equals("/trazabilidad.jsp") || ruta.equals("/MedicamentoServlet")
                 || ruta.equals("/FacturaCompraServlet")
                 || ruta.equals("/CompraServlet") || ruta.equals("/compra-detalle.jsp")

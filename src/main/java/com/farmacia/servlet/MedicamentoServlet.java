@@ -78,6 +78,8 @@ public class MedicamentoServlet extends HttpServlet {
             m.setNombre(nombre);
             m.setCategoria(categoria.trim());
             m.setRegistroInvima(registroInvima == null ? "" : registroInvima.trim());
+            String catalogoParam = request.getParameter("catalogoMedicamentoId");
+            m.setCatalogoMedicamentoId(catalogoParam == null || catalogoParam.isBlank() ? null : Long.valueOf(catalogoParam));
             m.setLote(lote == null || lote.isBlank() ? null : lote.trim());
             m.setFechaVencimiento(fecha == null || fecha.isBlank() ? null : fecha);
             m.setStock(stock);

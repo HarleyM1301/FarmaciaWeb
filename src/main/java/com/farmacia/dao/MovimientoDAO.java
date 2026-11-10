@@ -232,7 +232,7 @@ public class MovimientoDAO {
             Double totalFactura, List<LineaCompra> lineas, int usuarioId) throws SQLException {
         // Valida la cabecera y el número permitido de líneas antes de abrir la transacción.
         if (fecha == null || proveedor == null || proveedor.isBlank() || numeroFactura == null
-                || numeroFactura.isBlank() || lineas == null || lineas.isEmpty() || lineas.size() > 50) {
+                || numeroFactura.isBlank() || lineas == null || lineas.isEmpty() || lineas.size() > 500) {
             throw new SQLException("Completa los datos de la factura y agrega al menos un producto.");
         }
         try (Connection c = Conexion.getConexion()) {
@@ -260,6 +260,8 @@ public class MovimientoDAO {
                 for (LineaCompra linea : lineas) {
                     // Valida unidades, costo, lote, vencimiento y datos de productos nuevos.
                     validarLinea(linea);
+                    asociarCatalogoProducto(c, linea);
+                    asociarCodigoBarras(c, linea);
                     // Suma el costo total de la línea a la factura.
                     total += linea.getCosto() * linea.getCantidad();
                 }
@@ -334,6 +336,41 @@ public class MovimientoDAO {
                 // Devuelve la conexión al modo de confirmación automática.
                 c.setAutoCommit(true);
             }
+        }
+    }
+
+    /** Enlaza una ficha antigua de inventario con el CUM confirmado durante la recepción. */
+    private void asociarCatalogoProducto(Connection c, LineaCompra linea) throws SQLException {
+        if (linea.getProductoId() < 1 || linea.getCatalogoMedicamentoId() == null) return;
+        try (PreparedStatement p=c.prepareStatement("SELECT catalogo_medicamento_id FROM producto WHERE idProducto=? FOR UPDATE")) {
+            p.setInt(1,linea.getProductoId());
+            try (ResultSet r=p.executeQuery()) {
+                if(!r.next())throw new SQLException("El medicamento seleccionado ya no existe.");
+                long actual=r.getLong(1);boolean nulo=r.wasNull();
+                if(!nulo&&actual!=linea.getCatalogoMedicamentoId())throw new SQLException("El medicamento está vinculado a otra presentación CUM.");
+                if(nulo)try(PreparedStatement u=c.prepareStatement("UPDATE producto SET catalogo_medicamento_id=? WHERE idProducto=?")){u.setLong(1,linea.getCatalogoMedicamentoId());u.setInt(2,linea.getProductoId());u.executeUpdate();}
+            }
+        }
+    }
+
+    /** Vincula el código escaneado con la presentación CUM dentro de la transacción de recepción. */
+    private void asociarCodigoBarras(Connection c, LineaCompra linea) throws SQLException {
+        String codigo = linea.getCodigoBarras() == null ? "" : linea.getCodigoBarras().replaceAll("\\s", "");
+        if (codigo.isBlank()) return;
+        if (!codigo.matches("[0-9]{8,14}") || linea.getCatalogoMedicamentoId() == null) {
+            throw new SQLException("Selecciona una presentación INVIMA para vincular el código de barras leído.");
+        }
+        try (PreparedStatement buscar = c.prepareStatement("SELECT id_catalogo FROM catalogo_medicamento_codigo_barras WHERE codigo=? FOR UPDATE")) {
+            buscar.setString(1, codigo);
+            try (ResultSet r = buscar.executeQuery()) {
+                if (r.next()) {
+                    if (r.getLong(1) != linea.getCatalogoMedicamentoId()) throw new SQLException("El código de barras ya está asociado a otra presentación.");
+                    return;
+                }
+            }
+        }
+        try (PreparedStatement insertar = c.prepareStatement("INSERT INTO catalogo_medicamento_codigo_barras (id_catalogo,codigo) VALUES (?,?)")) {
+            insertar.setLong(1, linea.getCatalogoMedicamentoId()); insertar.setString(2, codigo); insertar.executeUpdate();
         }
     }
 

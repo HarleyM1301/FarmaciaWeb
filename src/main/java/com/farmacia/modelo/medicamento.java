@@ -8,6 +8,8 @@ public class medicamento {
     private String nombre;
     // Número de registro sanitario INVIMA del medicamento; no corresponde al lote.
     private String registroInvima;
+    // Presentación oficial CUM asociada a esta ficha del inventario, si fue seleccionada.
+    private Long catalogoMedicamentoId;
     // Grupo farmacológico guardado en la columna categoria del catálogo.
     private String categoria;
     // Código del lote que permite distinguir existencias y vencimientos.
@@ -37,6 +39,10 @@ public class medicamento {
     public String getRegistroInvima() { return registroInvima; }
     // Guarda el número INVIMA, independiente del código de lote recibido.
     public void setRegistroInvima(String registroInvima) { this.registroInvima = registroInvima; }
+    // Devuelve el identificador de la presentación oficial asociada.
+    public Long getCatalogoMedicamentoId() { return catalogoMedicamentoId; }
+    // Asocia o desvincula esta ficha con una presentación del catálogo INVIMA.
+    public void setCatalogoMedicamentoId(Long catalogoMedicamentoId) { this.catalogoMedicamentoId = catalogoMedicamentoId; }
     // Devuelve el grupo farmacológico asignado al medicamento.
     public String getCategoria() { return categoria; }
     // Guarda el grupo farmacológico para organizar el inventario.

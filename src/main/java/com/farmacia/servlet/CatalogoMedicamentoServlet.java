@@ -19,7 +19,11 @@ public class CatalogoMedicamentoServlet extends HttpServlet {
         // Fija UTF-8 para que nombres farmacológicos con tildes lleguen intactos al navegador.
         resp.setCharacterEncoding("UTF-8");resp.setContentType("application/json;charset=UTF-8");
         // Busca un máximo de veinte resultados y forma manualmente una respuesta JSON escapada.
-        try{List<Map<String,Object>> rows=new CatalogoMedicamentoDAO().buscar(req.getParameter("q"),20);StringBuilder json=new StringBuilder("[");
+        try{
+            CatalogoMedicamentoDAO dao=new CatalogoMedicamentoDAO();
+            String codigo=req.getParameter("barcode");
+            if(codigo!=null){Map<String,Object> item=dao.buscarPorCodigoBarras(codigo);if(item==null){resp.getWriter().write("null");return;}StringBuilder uno=new StringBuilder("{\"id\":").append(item.get("id")).append(',');campo(uno,"producto",item.get("producto"));campo(uno,"registro",item.get("registro"));campo(uno,"cum",item.get("cum"));campo(uno,"forma",item.get("forma"));campo(uno,"atc",item.get("atc"));if(uno.charAt(uno.length()-1)==',')uno.setLength(uno.length()-1);resp.getWriter().write(uno.append('}').toString());return;}
+            List<Map<String,Object>> rows=dao.buscar(req.getParameter("q"),20);StringBuilder json=new StringBuilder("[");
             for(Map<String,Object> row:rows){if(json.length()>1)json.append(',');json.append('{').append("\"id\":").append(row.get("id")).append(',');
                 campo(json,"producto",row.get("producto"));campo(json,"registro",row.get("registro"));campo(json,"cum",row.get("cum"));campo(json,"descripcion",row.get("descripcion"));campo(json,"estado",row.get("estado"));campo(json,"unidad",row.get("unidad"));campo(json,"atc",row.get("atc"));campo(json,"ium",row.get("ium"));campo(json,"via",row.get("via"));campo(json,"forma",row.get("forma"));campo(json,"componentes",row.get("componentes"));if(json.charAt(json.length()-1)==',')json.setLength(json.length()-1);json.append('}');}
             resp.getWriter().write(json.append(']').toString());

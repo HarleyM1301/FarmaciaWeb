@@ -30,6 +30,7 @@ public class LineaCompra {
     private int unidadesPorBlister;
     private Long catalogoMedicamentoId;
     private String registroInvima;
+    private String codigoBarras;
 
     // Devuelve el ID del producto existente o cero si se va a crear uno.
     public int getProductoId() { return productoId; }
@@ -87,4 +88,6 @@ public class LineaCompra {
     public String getRegistroInvima() { return registroInvima; }
     // Guarda el registro sanitario que se asignará al producto creado desde la factura.
     public void setRegistroInvima(String registroInvima) { this.registroInvima = registroInvima; }
+    public String getCodigoBarras() { return codigoBarras; }
+    public void setCodigoBarras(String codigoBarras) { this.codigoBarras = codigoBarras; }
 }

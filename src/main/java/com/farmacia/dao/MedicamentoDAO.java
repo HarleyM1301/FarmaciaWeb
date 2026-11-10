@@ -21,7 +21,7 @@ public class MedicamentoDAO {
         // Detiene el alta si faltan datos o si algún valor no cumple los límites del modelo.
         if (!datosValidos(m)) return false;
         // Prepara la instrucción que crea la ficha del medicamento en el catálogo.
-        String producto = "INSERT INTO producto (nombre,categoria,registro_invima,lote,fecha_vencimiento,precio_venta,unidad_base,unidades_por_presentacion,unidades_por_blister) VALUES (?,?,?,?,?,?,?,?,?)";
+        String producto = "INSERT INTO producto (nombre,categoria,registro_invima,catalogo_medicamento_id,lote,fecha_vencimiento,precio_venta,unidad_base,unidades_por_presentacion,unidades_por_blister) VALUES (?,?,?,?,?,?,?,?,?,?)";
         try (Connection c = Conexion.getConexion()) {
             // No intenta guardar datos si la conexión a MySQL no pudo abrirse.
             if (c == null) return false;
@@ -34,18 +34,19 @@ public class MedicamentoDAO {
                 p.setString(2, m.getCategoria().trim());
                 // Guarda el registro sanitario en su campo propio, separado del lote.
                 p.setString(3, vacioANull(m.getRegistroInvima()));
-                // Asigna el lote real al cuarto parámetro de la consulta.
-                p.setString(4, vacioANull(m.getLote()));
+                if (m.getCatalogoMedicamentoId() == null) p.setNull(4, java.sql.Types.BIGINT); else p.setLong(4, m.getCatalogoMedicamentoId());
+                // Asigna el lote real al quinto parámetro de la consulta.
+                p.setString(5, vacioANull(m.getLote()));
                 // Guarda NULL cuando no se informó una fecha de vencimiento.
-                if (m.getFechaVencimiento() == null || m.getFechaVencimiento().isBlank()) p.setNull(5, java.sql.Types.DATE);
-                else p.setDate(5, java.sql.Date.valueOf(m.getFechaVencimiento()));
+                if (m.getFechaVencimiento() == null || m.getFechaVencimiento().isBlank()) p.setNull(6, java.sql.Types.DATE);
+                else p.setDate(6, java.sql.Date.valueOf(m.getFechaVencimiento()));
                 // Asigna el precio de venta registrado para el medicamento.
-                p.setDouble(6, m.getPrecio());
+                p.setDouble(7, m.getPrecio());
                 // Guarda la unidad mínima usada para controlar las existencias.
-                p.setString(7, m.getUnidadBase());
+                p.setString(8, m.getUnidadBase());
                 // Guarda cuántas unidades mínimas contiene cada presentación.
-                p.setInt(8, m.getUnidadesPorPresentacion());
-                p.setInt(9, m.getUnidadesPorBlister());
+                p.setInt(9, m.getUnidadesPorPresentacion());
+                p.setInt(10, m.getUnidadesPorBlister());
                 // Ejecuta el alta de la ficha en la tabla producto.
                 p.executeUpdate();
                 try (ResultSet keys = p.getGeneratedKeys()) {
@@ -82,7 +83,7 @@ public class MedicamentoDAO {
         // Rechaza datos inválidos y registros sin un identificador persistido.
         if (!datosValidos(m) || m.getIdMedicamento() < 1) return false;
         // Define los campos de catálogo que se actualizarán para el producto indicado.
-        String sql = "UPDATE producto SET nombre=?,categoria=?,registro_invima=?,lote=?,fecha_vencimiento=?,precio_venta=?,unidad_base=?,unidades_por_presentacion=?,unidades_por_blister=? WHERE idProducto=?";
+        String sql = "UPDATE producto SET nombre=?,categoria=?,registro_invima=?,catalogo_medicamento_id=?,lote=?,fecha_vencimiento=?,precio_venta=?,unidad_base=?,unidades_por_presentacion=?,unidades_por_blister=? WHERE idProducto=?";
         try (Connection c = Conexion.getConexion()) {
             // Finaliza sin cambios si MySQL no está disponible.
             if (c == null) return false;
@@ -93,15 +94,16 @@ public class MedicamentoDAO {
                 p.setString(1, m.getNombre().trim());
                 p.setString(2, m.getCategoria().trim());
                 p.setString(3, vacioANull(m.getRegistroInvima()));
-                p.setString(4, vacioANull(m.getLote()));
-                if (m.getFechaVencimiento() == null || m.getFechaVencimiento().isBlank()) p.setNull(5, java.sql.Types.DATE);
-                else p.setDate(5, java.sql.Date.valueOf(m.getFechaVencimiento()));
-                p.setDouble(6, m.getPrecio());
-                p.setString(7, m.getUnidadBase());
-                p.setInt(8, m.getUnidadesPorPresentacion());
-                p.setInt(9, m.getUnidadesPorBlister());
+                if (m.getCatalogoMedicamentoId() == null) p.setNull(4, java.sql.Types.BIGINT); else p.setLong(4, m.getCatalogoMedicamentoId());
+                p.setString(5, vacioANull(m.getLote()));
+                if (m.getFechaVencimiento() == null || m.getFechaVencimiento().isBlank()) p.setNull(6, java.sql.Types.DATE);
+                else p.setDate(6, java.sql.Date.valueOf(m.getFechaVencimiento()));
+                p.setDouble(7, m.getPrecio());
+                p.setString(8, m.getUnidadBase());
+                p.setInt(9, m.getUnidadesPorPresentacion());
+                p.setInt(10, m.getUnidadesPorBlister());
                 // Asocia la actualización con el identificador del medicamento existente.
-                p.setInt(10, m.getIdMedicamento());
+                p.setInt(11, m.getIdMedicamento());
                 // Exige que exactamente un registro exista y se haya actualizado.
                 if (p.executeUpdate() != 1) throw new SQLException("El medicamento ya no existe.");
                 // Sincroniza las existencias con el valor enviado desde el formulario.
@@ -134,7 +136,7 @@ public class MedicamentoDAO {
         // Prepara la lista que se devolverá aunque la consulta falle.
         List<medicamento> lista = new ArrayList<>();
         // Consulta productos y suma cualquier fila de inventario asociada a cada uno.
-        String sql = "SELECT p.idProducto,p.nombre,p.categoria,p.registro_invima,p.lote,p.fecha_vencimiento,p.precio_venta,p.unidad_base,p.unidades_por_presentacion,p.unidades_por_blister,"
+        String sql = "SELECT p.idProducto,p.nombre,p.categoria,p.registro_invima,p.catalogo_medicamento_id,p.lote,p.fecha_vencimiento,p.precio_venta,p.unidad_base,p.unidades_por_presentacion,p.unidades_por_blister,"
                 + "COALESCE(i.stock,0) AS stock FROM producto p "
                 + "LEFT JOIN (SELECT id_producto,SUM(COALESCE(cantidad,0)) AS stock "
                 + "FROM inventario GROUP BY id_producto) i ON i.id_producto=p.idProducto ORDER BY p.nombre,p.lote";
@@ -150,6 +152,8 @@ public class MedicamentoDAO {
                     m.setNombre(r.getString("nombre"));
                     m.setCategoria(r.getString("categoria"));
                     m.setRegistroInvima(r.getString("registro_invima"));
+                    long catalogoId = r.getLong("catalogo_medicamento_id");
+                    m.setCatalogoMedicamentoId(r.wasNull() ? null : catalogoId);
                     m.setLote(r.getString("lote"));
                     java.sql.Date vencimiento = r.getDate("fecha_vencimiento");
                     m.setFechaVencimiento(vencimiento == null ? "" : vencimiento.toString());

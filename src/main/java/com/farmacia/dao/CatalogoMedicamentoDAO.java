@@ -122,6 +122,29 @@ public class CatalogoMedicamentoDAO {
         return out;
     }
 
+    /** Busca la presentación oficial asociada a un código leído en el empaque. */
+    public Map<String,Object> buscarPorCodigoBarras(String codigo) throws SQLException {
+        String limpio = codigo == null ? "" : codigo.replaceAll("\\s", "");
+        if (!limpio.matches("[0-9]{8,14}")) return null;
+        String sql = "SELECT m.id_catalogo,m.producto,m.registro_sanitario,m.codigo_cum,m.forma_farmaceutica,m.atc "
+                + "FROM catalogo_medicamento_codigo_barras b JOIN catalogo_medicamento_invima m ON m.id_catalogo=b.id_catalogo "
+                + "WHERE b.codigo=? AND (m.estado_registro IS NULL OR LOWER(m.estado_registro) LIKE '%vigent%') LIMIT 1";
+        try (Connection c=Conexion.getConexion()) {
+            if(c==null)throw new SQLException("No hay conexión con MySQL.");
+            try(PreparedStatement p=c.prepareStatement(sql)){
+                p.setString(1,limpio);
+                try (ResultSet r=p.executeQuery()) {
+                    if (!r.next()) return null;
+                    Map<String,Object> fila=new HashMap<>();
+                    fila.put("id",r.getLong("id_catalogo")); fila.put("producto",r.getString("producto"));
+                    fila.put("registro",r.getString("registro_sanitario")); fila.put("cum",r.getString("codigo_cum"));
+                    fila.put("forma",r.getString("forma_farmaceutica")); fila.put("atc",r.getString("atc"));
+                    return fila;
+                }
+            }
+        }
+    }
+
     /** Devuelve el contenido de una columna o una cadena vacía si falta en el archivo. */
     private static String valor(List<String> row,Map<String,Integer> col,String key){Integer i=col.get(key);return i==null||i>=row.size()?"":row.get(i).trim();}
     /** Canonicaliza encabezados para comparar palabras con tildes, espacios o mayúsculas distintas. */

@@ -45,9 +45,60 @@ function normalizar(texto){return (texto||'').normalize('NFD').replace(/[\u0300-
 document.getElementById('buscarMedicamento').addEventListener('input',()=>filtrarMedicamentos('buscarMedicamento','medicamentoId','sinResultadosVenta'));
 document.getElementById('buscarProductoEditar').addEventListener('input',()=>filtrarMedicamentos('buscarProductoEditar','productoEditar','sinResultadosEditar'));
 // Calcula cuántas unidades de inventario y cuánto valor representa la presentación seleccionada.
-function actualizarVentaUnidad(productoId,unidadId,cantidadId,conversionId){const producto=document.getElementById(productoId);const unidad=document.getElementById(unidadId);const cantidad=document.getElementById(cantidadId);const salida=document.getElementById(conversionId);const opcion=producto.selectedOptions[0];const factorBlister=Number(opcion?.dataset.factorBlister)||0;const factorCaja=Number(opcion?.dataset.factor)||1;const base=opcion?.dataset.base||'unidad';const opcionBlister=unidad.querySelector('option[value="blister"]');opcionBlister.disabled=factorBlister<1;if(opcionBlister.disabled&&unidad.value==='blister')unidad.value='base';const factor=unidad.value==='blister'?factorBlister:unidad.value==='presentacion'?factorCaja:1;cantidad.max=productoId==='medicamentoId'&&opcion?.value?String(Math.floor((Number(opcion.dataset.stock)||0)/factor)):'';if(!opcion?.value){salida.textContent='Selecciona un medicamento para ver la conversión.';return}const numero=Number(cantidad.value)||0;const unidadesBase=numero*factor;const precio=Number(opcion.dataset.precio)||0;const sufijo=base+(unidadesBase===1?'':'s');const total=precio?' Total aprox.: $'+(unidadesBase*precio).toLocaleString('es-CO')+'.':'';salida.textContent=numero+' '+unidad.options[unidad.selectedIndex].text.toLocaleLowerCase('es')+' = '+unidadesBase+' '+sufijo+'.'+total}
+function actualizarVentaUnidad(productoId, unidadId, cantidadId, conversionId) {
+  // Localiza los controles de producto, presentación, cantidad y vista previa.
+  const producto = document.getElementById(productoId);
+  const unidad = document.getElementById(unidadId);
+  const cantidad = document.getElementById(cantidadId);
+  const salida = document.getElementById(conversionId);
+  // Obtiene el producto elegido para leer sus factores y precio.
+  const opcion = producto.selectedOptions[0];
+  // Lee las unidades mínimas que contiene el blíster y la caja.
+  const factorBlister = Number(opcion?.dataset.factorBlister) || 0;
+  const factorCaja = Number(opcion?.dataset.factor) || 1;
+  // Lee la unidad mínima usada por el inventario, por ejemplo tableta.
+  const base = opcion?.dataset.base || 'unidad';
+  // Muestra el nombre de la unidad mínima en la opción de venta individual.
+  const opcionBase = unidad.querySelector('option[value="base"]');
+  opcionBase.textContent = 'Unidad (' + base + ')';
+  // Muestra cuántas unidades mínimas se descuentan al vender un blíster.
+  const opcionBlister = unidad.querySelector('option[value="blister"]');
+  opcionBlister.textContent = factorBlister > 0
+    ? 'Blíster (' + factorBlister + ' ' + base + (factorBlister === 1 ? '' : 's') + ')'
+    : 'Blíster';
+  // Deshabilita la venta por blíster si ese factor no está configurado.
+  opcionBlister.disabled = factorBlister < 1;
+  // Muestra la equivalencia de la caja con la unidad mínima.
+  const opcionCaja = unidad.querySelector('option[value="presentacion"]');
+  opcionCaja.textContent = 'Caja/paquete (' + factorCaja + ' ' + base + (factorCaja === 1 ? '' : 's') + ')';
+  // Si la venta por blíster dejó de estar disponible, vuelve a unidad base.
+  if (opcionBlister.disabled && unidad.value === 'blister') unidad.value = 'base';
+  // Elige el factor correcto según se venda unidad, blíster o caja.
+  const factor = unidad.value === 'blister' ? factorBlister : unidad.value === 'presentacion' ? factorCaja : 1;
+  // Limita la cantidad a las presentaciones completas que hay disponibles en stock.
+  cantidad.max = productoId === 'medicamentoId' && opcion?.value
+    ? String(Math.floor((Number(opcion.dataset.stock) || 0) / factor)) : '';
+  // Pide seleccionar un producto antes de calcular las equivalencias.
+  if (!opcion?.value) { salida.textContent = 'Selecciona un medicamento para ver la conversión.'; return; }
+  // Lee la cantidad escrita y la convierte a unidades mínimas del inventario.
+  const numero = Number(cantidad.value) || 0;
+  const unidadesBase = numero * factor;
+  // Lee el precio unitario configurado para el producto.
+  const precio = Number(opcion.dataset.precio) || 0;
+  // Define los plurales para mostrar correctamente la unidad convertida.
+  const plural = {unidad:'unidades',caja:'cajas',paquete:'paquetes',tableta:'tabletas',capsula:'cápsulas',sobre:'sobres',ml:'ml',gota:'gotas',ampolla:'ampollas',frasco:'frascos'};
+  // Selecciona la forma singular o plural de la unidad base.
+  const sufijo = unidadesBase === 1 ? base : (plural[base] || base + 's');
+  // Calcula el total estimado multiplicando unidades mínimas por precio unitario.
+  const total = precio ? ' Total aprox.: $' + (unidadesBase * precio).toLocaleString('es-CO') + '.' : '';
+  // Presenta la conversión y el precio aproximado antes de guardar la venta.
+  salida.textContent = numero + ' ' + unidad.options[unidad.selectedIndex].text.toLocaleLowerCase('es') + ' = ' + unidadesBase + ' ' + sufijo + '.' + total;
+}
+// Recalcula la conversión mientras se cambia la cantidad de la venta nueva.
 document.getElementById('cantidad').addEventListener('input',()=>actualizarVentaUnidad('medicamentoId','unidadVenta','cantidad','conversionVenta'));
+// Recalcula la conversión mientras se cambia la cantidad de una venta editada.
 document.getElementById('cantidadEditar').addEventListener('input',()=>actualizarVentaUnidad('productoEditar','unidadVentaEditar','cantidadEditar','conversionEditar'));
+// Actualiza factores y precio cuando cambia el producto en la edición.
 document.getElementById('productoEditar').addEventListener('change',()=>actualizarVentaUnidad('productoEditar','unidadVentaEditar','cantidadEditar','conversionEditar'));
 document.getElementById('unidadVentaEditar').addEventListener('change',()=>actualizarVentaUnidad('productoEditar','unidadVentaEditar','cantidadEditar','conversionEditar'));
 // Carga los datos de una venta existente en el formulario de edición.

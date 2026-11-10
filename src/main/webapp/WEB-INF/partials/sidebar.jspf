@@ -11,20 +11,22 @@
 <% boolean puedeVerInventarioMenu = gestionCompletaMenu || rolMenu.equals("usuario") || rolMenu.equals("cajero") || rolMenu.equals("vendedor"); %>
 <%-- Permite mostrar el acceso a ventas a administradores, usuarios de caja y vendedores. --%>
 <% boolean puedeVenderMenu = gestionCompletaMenu || rolMenu.equals("usuario") || rolMenu.equals("cajero") || rolMenu.equals("vendedor"); %>
-<aside class="sidebar">
+<aside class="sidebar" aria-label="Navegación principal">
     <div class="side-brand">✚ Farmacia</div>
-    <a class="nav-link ${activePage eq 'panel' ? 'active' : ''}" href="${pageContext.request.contextPath}/panel.jsp"><span class="nav-icon">▦</span>Dashboard</a>
+    <nav class="side-nav" aria-label="Secciones">
+    <a class="nav-link ${activePage eq 'panel' ? 'active' : ''}" aria-current="${activePage eq 'panel' ? 'page' : 'false'}" href="${pageContext.request.contextPath}/panel.jsp"><span class="nav-icon" aria-hidden="true">▦</span>Inicio</a>
     <% if (puedeVerInventarioMenu) { %>
-    <a class="nav-link ${activePage eq 'medicamentos' ? 'active' : ''}" href="${pageContext.request.contextPath}/medicamentos.jsp"><span class="nav-icon">◈</span>Medicamentos</a>
+    <a class="nav-link ${activePage eq 'medicamentos' ? 'active' : ''}" aria-current="${activePage eq 'medicamentos' ? 'page' : 'false'}" href="${pageContext.request.contextPath}/medicamentos.jsp"><span class="nav-icon" aria-hidden="true">◈</span>Medicamentos</a>
     <% } if (puedeVenderMenu) { %>
-    <a class="nav-link ${activePage eq 'ventas' ? 'active' : ''}" href="${pageContext.request.contextPath}/ventas.jsp"><span class="nav-icon">🛒</span>Ventas</a>
+    <a class="nav-link ${activePage eq 'ventas' ? 'active' : ''}" aria-current="${activePage eq 'ventas' ? 'page' : 'false'}" href="${pageContext.request.contextPath}/ventas.jsp"><span class="nav-icon" aria-hidden="true">🛒</span>Ventas</a>
     <% } if (gestionCompletaMenu) { %>
-    <a class="nav-link ${activePage eq 'compras' ? 'active' : ''}" href="${pageContext.request.contextPath}/compras.jsp"><span class="nav-icon">▤</span>Compras</a>
-    <a class="nav-link ${activePage eq 'reportes' ? 'active' : ''}" href="${pageContext.request.contextPath}/reportes.jsp"><span class="nav-icon">▥</span>Reportes</a>
-    <a class="nav-link ${activePage eq 'trazabilidad' ? 'active' : ''}" href="${pageContext.request.contextPath}/trazabilidad.jsp"><span class="nav-icon">↔</span>Movimientos de inventario</a>
+    <a class="nav-link ${activePage eq 'compras' ? 'active' : ''}" aria-current="${activePage eq 'compras' ? 'page' : 'false'}" href="${pageContext.request.contextPath}/compras.jsp"><span class="nav-icon" aria-hidden="true">▤</span>Compras</a>
+    <a class="nav-link ${activePage eq 'reportes' ? 'active' : ''}" aria-current="${activePage eq 'reportes' ? 'page' : 'false'}" href="${pageContext.request.contextPath}/reportes.jsp"><span class="nav-icon" aria-hidden="true">▥</span>Reportes</a>
+    <a class="nav-link ${activePage eq 'trazabilidad' ? 'active' : ''}" aria-current="${activePage eq 'trazabilidad' ? 'page' : 'false'}" href="${pageContext.request.contextPath}/trazabilidad.jsp"><span class="nav-icon" aria-hidden="true">↔</span>Movimientos de inventario</a>
     <% } %>
     <%-- Muestra el acceso al listado de cuentas únicamente a perfiles administradores. --%>
-    <% if (administradorMenu) { %><a class="nav-link ${activePage eq 'catalogo' ? 'active' : ''}" href="${pageContext.request.contextPath}/CatalogoInvimaServlet"><span class="nav-icon">▦</span>Catálogo INVIMA</a><a class="nav-link ${activePage eq 'usuarios' ? 'active' : ''}" href="${pageContext.request.contextPath}/usuarios.jsp"><span class="nav-icon">♙</span>Usuarios</a><% } %>
+    <% if (administradorMenu) { %><a class="nav-link ${activePage eq 'catalogo' ? 'active' : ''}" aria-current="${activePage eq 'catalogo' ? 'page' : 'false'}" href="${pageContext.request.contextPath}/CatalogoInvimaServlet"><span class="nav-icon" aria-hidden="true">▦</span>Catálogo INVIMA</a><a class="nav-link ${activePage eq 'usuarios' ? 'active' : ''}" aria-current="${activePage eq 'usuarios' ? 'page' : 'false'}" href="${pageContext.request.contextPath}/usuarios.jsp"><span class="nav-icon" aria-hidden="true">♙</span>Usuarios</a><% } %>
+    </nav>
     <a class="nav-link logout" href="${pageContext.request.contextPath}/LogoutServlet">Cerrar sesión</a>
 </aside>
 

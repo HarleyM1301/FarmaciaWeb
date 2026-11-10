@@ -47,6 +47,13 @@
             <version>0.4</version>
         </dependency>
 
+        <!-- Extrae texto y renderiza PDFs localmente para facturas con y sin capa de texto. -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.8</version>
+        </dependency>
+
     </dependencies>
 
     <!-- Configuración de compilación y empaquetado -->

@@ -7,6 +7,14 @@
 .role-field{border:0;padding:0;margin:18px 0 4px}
 .report-stat{color:inherit;transition:transform .18s,border-color .18s;cursor:pointer}.report-stat:hover,.report-stat:focus-visible{transform:translateY(-2px);border-color:#9bceba;outline:none}.report-stat small{display:block;margin-top:7px;color:var(--green-dark);font-weight:650}.bar-link{color:inherit;border-radius:7px}.bar-link:hover,.bar-link:focus-visible{background:#f2f8f5;outline:2px solid #b7ddcb}.stock-link{color:inherit;border-radius:7px;padding:7px 5px}.stock-link:hover,.stock-link:focus-visible{background:#f2f8f5;outline:2px solid #b7ddcb}
 .role-field legend{width:100%;text-align:center;font-weight:700;font-size:14px;margin-bottom:8px}
+
+/* Navegación y controles con indicación clara para teclado y pantallas táctiles. */
+.side-nav{display:grid;gap:6px}
+.nav-link:focus-visible,.btn:focus-visible,.back-link:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid #f0bf58;outline-offset:2px}
+.nav-link[aria-current="page"]{background:rgba(255,255,255,.19);color:#fff;font-weight:750;box-shadow:inset 3px 0 #9ce0ad}
+@media(max-width:680px){.sidebar{align-items:stretch;gap:0}.side-nav{display:flex;flex:1 1 100%;flex-wrap:wrap;gap:6px}.nav-link{flex:1 1 auto;justify-content:center;min-height:42px}.nav-link.logout{margin:0;flex:0 0 auto}.topbar{gap:10px}.brand{font-size:15px}.user-chip{font-size:12px}.avatar{flex:0 0 34px}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+.borradores-lista{display:grid;gap:8px}.borrador-item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--line);border-radius:9px;background:#fbfdfc}.borrador-item p{margin:3px 0;color:var(--muted);font-size:13px}.barcode-tools{display:flex;gap:6px;align-items:flex-end}.barcode-tools label{flex:1}.barcode-tools input{width:100%}.barcode-estado{display:block;font-size:12px;margin-top:4px}.barcode-estado.ok{color:var(--green-dark)}.barcode-estado.error{color:#a93b32}.barcode-video{width:100%;max-height:65vh;object-fit:cover;border-radius:10px;background:#101818}
 .role-option{position:relative;cursor:pointer;transition:.18s}
 .role-option input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer}
 .role-option:has(input:checked){border-color:var(--green);background:#e7f6ed;color:var(--green-dark);box-shadow:0 0 0 2px #16845a22}
