@@ -21,7 +21,7 @@ public class MedicamentoDAO {
         // Detiene el alta si faltan datos o si algún valor no cumple los límites del modelo.
         if (!datosValidos(m)) return false;
         // Prepara la instrucción que crea la ficha del medicamento en el catálogo.
-        String producto = "INSERT INTO producto (nombre,categoria,registro_invima,catalogo_medicamento_id,lote,fecha_vencimiento,precio_venta,unidad_base,unidades_por_presentacion,unidades_por_blister) VALUES (?,?,?,?,?,?,?,?,?,?)";
+        String producto = "INSERT INTO producto (nombre,categoria,registro_invima,catalogo_medicamento_id,lote,fecha_vencimiento,precio_venta,precio_blister,precio_presentacion,unidad_base,unidades_por_presentacion,unidades_por_blister) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
         try (Connection c = Conexion.getConexion()) {
             // No intenta guardar datos si la conexión a MySQL no pudo abrirse.
             if (c == null) return false;
@@ -42,11 +42,15 @@ public class MedicamentoDAO {
                 else p.setDate(6, java.sql.Date.valueOf(m.getFechaVencimiento()));
                 // Asigna el precio de venta registrado para el medicamento.
                 p.setDouble(7, m.getPrecio());
+                // Guarda el precio opcional del blíster o deja NULL para calcularlo desde la unidad.
+                if (m.getPrecioBlister() == null) p.setNull(8, java.sql.Types.DECIMAL); else p.setDouble(8, m.getPrecioBlister());
+                // Guarda el precio opcional de la caja o deja NULL para calcularlo desde la unidad.
+                if (m.getPrecioPresentacion() == null) p.setNull(9, java.sql.Types.DECIMAL); else p.setDouble(9, m.getPrecioPresentacion());
                 // Guarda la unidad mínima usada para controlar las existencias.
-                p.setString(8, m.getUnidadBase());
+                p.setString(10, m.getUnidadBase());
                 // Guarda cuántas unidades mínimas contiene cada presentación.
-                p.setInt(9, m.getUnidadesPorPresentacion());
-                p.setInt(10, m.getUnidadesPorBlister());
+                p.setInt(11, m.getUnidadesPorPresentacion());
+                p.setInt(12, m.getUnidadesPorBlister());
                 // Ejecuta el alta de la ficha en la tabla producto.
                 p.executeUpdate();
                 try (ResultSet keys = p.getGeneratedKeys()) {
@@ -83,7 +87,7 @@ public class MedicamentoDAO {
         // Rechaza datos inválidos y registros sin un identificador persistido.
         if (!datosValidos(m) || m.getIdMedicamento() < 1) return false;
         // Define los campos de catálogo que se actualizarán para el producto indicado.
-        String sql = "UPDATE producto SET nombre=?,categoria=?,registro_invima=?,catalogo_medicamento_id=?,lote=?,fecha_vencimiento=?,precio_venta=?,unidad_base=?,unidades_por_presentacion=?,unidades_por_blister=? WHERE idProducto=?";
+        String sql = "UPDATE producto SET nombre=?,categoria=?,registro_invima=?,catalogo_medicamento_id=?,lote=?,fecha_vencimiento=?,precio_venta=?,precio_blister=?,precio_presentacion=?,unidad_base=?,unidades_por_presentacion=?,unidades_por_blister=? WHERE idProducto=?";
         try (Connection c = Conexion.getConexion()) {
             // Finaliza sin cambios si MySQL no está disponible.
             if (c == null) return false;
@@ -99,11 +103,15 @@ public class MedicamentoDAO {
                 if (m.getFechaVencimiento() == null || m.getFechaVencimiento().isBlank()) p.setNull(6, java.sql.Types.DATE);
                 else p.setDate(6, java.sql.Date.valueOf(m.getFechaVencimiento()));
                 p.setDouble(7, m.getPrecio());
-                p.setString(8, m.getUnidadBase());
-                p.setInt(9, m.getUnidadesPorPresentacion());
-                p.setInt(10, m.getUnidadesPorBlister());
+                // Guarda el precio de blíster o deja NULL si se calculará desde el precio suelto.
+                if (m.getPrecioBlister() == null) p.setNull(8, java.sql.Types.DECIMAL); else p.setDouble(8, m.getPrecioBlister());
+                // Guarda el precio de caja o deja NULL si se calculará desde el precio suelto.
+                if (m.getPrecioPresentacion() == null) p.setNull(9, java.sql.Types.DECIMAL); else p.setDouble(9, m.getPrecioPresentacion());
+                p.setString(10, m.getUnidadBase());
+                p.setInt(11, m.getUnidadesPorPresentacion());
+                p.setInt(12, m.getUnidadesPorBlister());
                 // Asocia la actualización con el identificador del medicamento existente.
-                p.setInt(11, m.getIdMedicamento());
+                p.setInt(13, m.getIdMedicamento());
                 // Exige que exactamente un registro exista y se haya actualizado.
                 if (p.executeUpdate() != 1) throw new SQLException("El medicamento ya no existe.");
                 // Sincroniza las existencias con el valor enviado desde el formulario.
@@ -136,7 +144,7 @@ public class MedicamentoDAO {
         // Prepara la lista que se devolverá aunque la consulta falle.
         List<medicamento> lista = new ArrayList<>();
         // Consulta productos y suma cualquier fila de inventario asociada a cada uno.
-        String sql = "SELECT p.idProducto,p.nombre,p.categoria,p.registro_invima,p.catalogo_medicamento_id,p.lote,p.fecha_vencimiento,p.precio_venta,p.unidad_base,p.unidades_por_presentacion,p.unidades_por_blister,"
+        String sql = "SELECT p.idProducto,p.nombre,p.categoria,p.registro_invima,p.catalogo_medicamento_id,p.lote,p.fecha_vencimiento,p.precio_venta,p.precio_blister,p.precio_presentacion,p.unidad_base,p.unidades_por_presentacion,p.unidades_por_blister,"
                 + "COALESCE(i.stock,0) AS stock FROM producto p "
                 + "LEFT JOIN (SELECT id_producto,SUM(COALESCE(cantidad,0)) AS stock "
                 + "FROM inventario GROUP BY id_producto) i ON i.id_producto=p.idProducto ORDER BY p.nombre,p.lote";
@@ -159,6 +167,10 @@ public class MedicamentoDAO {
                     m.setFechaVencimiento(vencimiento == null ? "" : vencimiento.toString());
                     m.setStock(r.getInt("stock"));
                     m.setPrecio(r.getDouble("precio_venta"));
+                    java.math.BigDecimal precioBlister = r.getBigDecimal("precio_blister");
+                    m.setPrecioBlister(precioBlister == null ? null : precioBlister.doubleValue());
+                    java.math.BigDecimal precioPresentacion = r.getBigDecimal("precio_presentacion");
+                    m.setPrecioPresentacion(precioPresentacion == null ? null : precioPresentacion.doubleValue());
                     m.setUnidadBase(r.getString("unidad_base"));
                     m.setUnidadesPorPresentacion(r.getInt("unidades_por_presentacion"));
                     m.setUnidadesPorBlister(r.getInt("unidades_por_blister"));
@@ -179,7 +191,7 @@ public class MedicamentoDAO {
     /** Lee el esquema previo a V6 para que un despliegue pendiente no oculte los medicamentos existentes. */
     private List<medicamento> listarSinInvima() {
         List<medicamento> lista = new ArrayList<>();
-        String sql = "SELECT p.idProducto,p.nombre,p.categoria,p.lote,p.fecha_vencimiento,p.precio_venta,p.unidad_base,p.unidades_por_presentacion,p.unidades_por_blister,"
+        String sql = "SELECT p.idProducto,p.nombre,p.categoria,p.lote,p.fecha_vencimiento,p.precio_venta,p.precio_blister,p.precio_presentacion,p.unidad_base,p.unidades_por_presentacion,p.unidades_por_blister,"
                 + "COALESCE(i.stock,0) AS stock FROM producto p "
                 + "LEFT JOIN (SELECT id_producto,SUM(COALESCE(cantidad,0)) AS stock FROM inventario GROUP BY id_producto) i "
                 + "ON i.id_producto=p.idProducto ORDER BY p.nombre,p.lote";
@@ -197,6 +209,10 @@ public class MedicamentoDAO {
                     m.setFechaVencimiento(vencimiento == null ? "" : vencimiento.toString());
                     m.setStock(r.getInt("stock"));
                     m.setPrecio(r.getDouble("precio_venta"));
+                    java.math.BigDecimal precioBlister = r.getBigDecimal("precio_blister");
+                    m.setPrecioBlister(precioBlister == null ? null : precioBlister.doubleValue());
+                    java.math.BigDecimal precioPresentacion = r.getBigDecimal("precio_presentacion");
+                    m.setPrecioPresentacion(precioPresentacion == null ? null : precioPresentacion.doubleValue());
                     m.setUnidadBase(r.getString("unidad_base"));
                     m.setUnidadesPorPresentacion(r.getInt("unidades_por_presentacion"));
                     m.setUnidadesPorBlister(r.getInt("unidades_por_blister"));
@@ -314,7 +330,9 @@ public class MedicamentoDAO {
                 || m.getUnidadesPorPresentacion() < 1 || m.getUnidadesPorPresentacion() > 100000
                 || m.getUnidadesPorBlister() < 0 || m.getUnidadesPorBlister() > m.getUnidadesPorPresentacion()
                 || m.getUnidadesPorBlister() > 0 && m.getUnidadesPorPresentacion() % m.getUnidadesPorBlister() != 0
-                || !Double.isFinite(m.getPrecio()) || m.getPrecio() < 0) return false;
+                || !Double.isFinite(m.getPrecio()) || m.getPrecio() < 0
+                || m.getPrecioBlister() != null && (!Double.isFinite(m.getPrecioBlister()) || m.getPrecioBlister() < 0)
+                || m.getPrecioPresentacion() != null && (!Double.isFinite(m.getPrecioPresentacion()) || m.getPrecioPresentacion() < 0)) return false;
         if (m.getFechaVencimiento() == null || m.getFechaVencimiento().isBlank()) return true;
         try {
             // Intenta convertir la fecha para descartar fechas que no respeten AAAA-MM-DD.

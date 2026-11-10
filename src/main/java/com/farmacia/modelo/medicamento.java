@@ -20,6 +20,10 @@ public class medicamento {
     private int stock;
     // Precio de venta por unidad.
     private double precio;
+    // Precio opcional para vender un blíster completo; null calcula usando el precio por unidad.
+    private Double precioBlister;
+    // Precio opcional para vender una caja completa; null calcula usando el precio por unidad.
+    private Double precioPresentacion;
     // Unidad mínima que controla el inventario (por ejemplo, tableta o sobre).
     private String unidadBase = "unidad";
     // Cantidad de unidades mínimas que contiene una presentación facturada.
@@ -67,6 +71,14 @@ public class medicamento {
     public double getPrecio() { return precio; }
     // Guarda el precio de venta del producto.
     public void setPrecio(double precio) { this.precio = precio; }
+    // Devuelve el precio configurado para vender un blíster completo, si existe.
+    public Double getPrecioBlister() { return precioBlister; }
+    // Guarda el precio independiente para la venta de un blíster.
+    public void setPrecioBlister(Double precioBlister) { this.precioBlister = precioBlister; }
+    // Devuelve el precio configurado para vender una caja completa, si existe.
+    public Double getPrecioPresentacion() { return precioPresentacion; }
+    // Guarda el precio independiente para la venta de una caja o paquete.
+    public void setPrecioPresentacion(Double precioPresentacion) { this.precioPresentacion = precioPresentacion; }
     // Devuelve la unidad mínima de control del inventario.
     public String getUnidadBase() { return unidadBase; }
     // Guarda la unidad que se suma o descuenta de las existencias.

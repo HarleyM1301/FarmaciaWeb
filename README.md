@@ -22,6 +22,8 @@ Aplicación de gestión para farmacia con Java 21, Jakarta Servlet/JSP, Tomcat 1
 16. Para importar un CSV desde consola: `java -cp "target/classes;target/FarmaciaWeb-1.0-SNAPSHOT/WEB-INF/lib/mysql-connector-j-9.3.0.jar" com.farmacia.util.ImportarCatalogoInvima ruta\catalogo.csv`. Configura las variables `FARMACIA_DB_URL`, `FARMACIA_DB_USER` y `FARMACIA_DB_PASSWORD` antes de ejecutar. La opción `--verificar` consulta los conteos.
 17. Abre el proyecto Maven en NetBeans y ejecútalo sobre Tomcat 10. El conector MySQL se empaqueta con la aplicación.
 18. Aplica una vez `src/main/resources/db/migration/V12__borradores_y_codigos_barras.sql` para habilitar el vínculo de códigos de barras con presentaciones CUM. Las recepciones pendientes se conservan en IndexedDB del navegador que las creó; se eliminan al confirmar o desde la lista de borradores.
+19. Aplica una vez `src/main/resources/db/migration/V13__precios_por_presentacion.sql` para guardar precios separados por unidad, blíster y caja. Los precios de blíster y caja son opcionales; si quedan vacíos, se calculan multiplicando el precio unitario por el contenido.
+20. Aplica una vez `src/main/resources/db/migration/V14__guardar_presentacion_venta.sql` para conservar en el detalle de cada venta si se vendió por unidad, blíster o caja, junto con la cantidad elegida. Así la edición posterior mantiene el precio y presentación originales.
 
 ## Módulos
 

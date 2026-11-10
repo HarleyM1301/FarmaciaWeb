@@ -38,8 +38,11 @@ public class MovimientoDAO {
                 }
                 // Busca al cliente por nombre o lo crea si se indicó uno nuevo.
                 int clienteId = obtenerOCrearCliente(c, cliente);
-                // Calcula el importe de la venta con el precio vigente del producto.
-                double subtotal = producto.precio * cantidad;
+                // Calcula el importe con el precio específico de la presentación elegida.
+                double precioVenta = producto.precioPorPresentacion(unidadVenta);
+                double subtotal = precioVenta * cantidadPresentaciones;
+                // Calcula un precio efectivo por unidad mínima para guardar el detalle histórico.
+                double precioUnitarioEfectivo = subtotal / cantidad;
                 // Prepara la inserción de la cabecera de venta y solicita su ID generado.
                 String venta = "INSERT INTO venta (fecha,total,id_usuario,id_cliente,metodo_pago) VALUES (?,?,?,?,?)";
                 int ventaId;
@@ -62,11 +65,13 @@ public class MovimientoDAO {
                     }
                 }
                 // Prepara el detalle que relaciona la venta con producto, unidades y precio.
-                try (PreparedStatement p = c.prepareStatement("INSERT INTO detalleventa (id_venta,id_producto,cantidad,precio_unitario,subtotal) VALUES (?,?,?,?,?)")) {
+                try (PreparedStatement p = c.prepareStatement("INSERT INTO detalleventa (id_venta,id_producto,cantidad,unidad_venta,cantidad_presentacion,precio_unitario,subtotal) VALUES (?,?,?,?,?,?,?)")) {
                     // Vincula los datos calculados al detalle de venta.
                     p.setInt(1, ventaId); p.setInt(2, productoId); p.setInt(3, cantidad);
-                    // Guarda precio unitario y subtotal, y ejecuta la inserción del detalle.
-                    p.setDouble(4, producto.precio); p.setDouble(5, subtotal); p.executeUpdate();
+                    // Conserva la presentación elegida y la cantidad ingresada en esa presentación.
+                    p.setString(4, unidadVenta == null ? "base" : unidadVenta); p.setInt(5, cantidadPresentaciones);
+                    // Guarda precio efectivo por unidad mínima y subtotal total de la venta.
+                    p.setDouble(6, precioUnitarioEfectivo); p.setDouble(7, subtotal); p.executeUpdate();
                 }
                 // Descuenta del inventario las unidades vendidas.
                 guardarStock(c, productoId, producto.stock - cantidad);
@@ -130,8 +135,11 @@ public class MovimientoDAO {
                     throw new SQLException("No se puede asignar a la venta un lote vencido.");
                 }
                 int clienteId = obtenerOCrearCliente(c, cliente);
-                // Recalcula el total con el precio actual del producto elegido.
-                double subtotal = nuevo.precio * cantidad;
+                // Recalcula el importe con el precio vigente de la presentación elegida.
+                double precioVenta = nuevo.precioPorPresentacion(unidadVenta);
+                double subtotal = precioVenta * cantidadPresentaciones;
+                // Conserva en el detalle el precio efectivo por cada unidad mínima descontada.
+                double precioUnitarioEfectivo = subtotal / cantidad;
                 try (PreparedStatement p = c.prepareStatement(
                         "UPDATE venta SET fecha=?,total=?,id_cliente=?,metodo_pago=? WHERE idVenta=?")) {
                     p.setTimestamp(1, new java.sql.Timestamp(fecha.getTime())); p.setDouble(2, subtotal);
@@ -140,9 +148,10 @@ public class MovimientoDAO {
                     if (p.executeUpdate() != 1) throw new SQLException("No se encontró la venta para editar.");
                 }
                 try (PreparedStatement p = c.prepareStatement(
-                        "UPDATE detalleventa SET id_producto=?,cantidad=?,precio_unitario=?,subtotal=? WHERE id_venta=?")) {
-                    p.setInt(1, productoId); p.setInt(2, cantidad); p.setDouble(3, nuevo.precio);
-                    p.setDouble(4, subtotal); p.setInt(5, ventaId);
+                        "UPDATE detalleventa SET id_producto=?,cantidad=?,unidad_venta=?,cantidad_presentacion=?,precio_unitario=?,subtotal=? WHERE id_venta=?")) {
+                    p.setInt(1, productoId); p.setInt(2, cantidad);
+                    p.setString(3, unidadVenta == null ? "base" : unidadVenta); p.setInt(4, cantidadPresentaciones);
+                    p.setDouble(5, precioUnitarioEfectivo); p.setDouble(6, subtotal); p.setInt(7, ventaId);
                     if (p.executeUpdate() != 1) throw new SQLException("No se pudo actualizar el detalle de la venta.");
                 }
                 if (productoAnterior == productoId) {
@@ -463,8 +472,8 @@ public class MovimientoDAO {
                 return existente;
             }
             // Clona los datos de catálogo y crea una fila aparte para conservar el lote nuevo.
-            String crearLote = "INSERT INTO producto (nombre,categoria,registro_invima,catalogo_medicamento_id,descripcion,precio_venta,lote,fecha_vencimiento,unidad_base,unidades_por_presentacion,unidades_por_blister) "
-                    + "SELECT nombre,categoria,registro_invima,catalogo_medicamento_id,descripcion,precio_venta,?,?,unidad_base,unidades_por_presentacion,unidades_por_blister FROM producto WHERE idProducto=?";
+            String crearLote = "INSERT INTO producto (nombre,categoria,registro_invima,catalogo_medicamento_id,descripcion,precio_venta,precio_blister,precio_presentacion,lote,fecha_vencimiento,unidad_base,unidades_por_presentacion,unidades_por_blister) "
+                    + "SELECT nombre,categoria,registro_invima,catalogo_medicamento_id,descripcion,precio_venta,precio_blister,precio_presentacion,?,?,unidad_base,unidades_por_presentacion,unidades_por_blister FROM producto WHERE idProducto=?";
             try (PreparedStatement p = c.prepareStatement(crearLote, Statement.RETURN_GENERATED_KEYS)) {
                 // Asigna el lote nuevo, su vencimiento y la ficha de origen que se clonará.
                 p.setString(1, lote);
@@ -539,7 +548,7 @@ public class MovimientoDAO {
         String sql = ventas
                 ? "SELECT v.idVenta AS id,v.fecha,v.total,COALESCE(c.nombre,'Ocasional') AS tercero,"
                     + "GROUP_CONCAT(DISTINCT p.nombre ORDER BY p.nombre SEPARATOR ', ') AS medicamento,"
-                    + "SUM(d.cantidad) AS cantidad,MIN(d.id_producto) AS productoId,v.metodo_pago "
+                    + "SUM(d.cantidad) AS cantidad,MIN(d.id_producto) AS productoId,v.metodo_pago,MIN(d.unidad_venta) AS unidadVenta,MIN(d.cantidad_presentacion) AS cantidadPresentacion "
                     + "FROM venta v LEFT JOIN cliente c ON c.idCliente=v.id_cliente "
                     + "JOIN detalleventa d ON d.id_venta=v.idVenta JOIN producto p ON p.idProducto=d.id_producto "
                     + "GROUP BY v.idVenta,v.fecha,v.total,c.nombre,v.metodo_pago ORDER BY v.idVenta DESC"
@@ -573,6 +582,11 @@ public class MovimientoDAO {
                         // Expone los datos necesarios para el formulario de edición de una venta.
                         fila.put("productoId", r.getInt("productoId"));
                         fila.put("metodo", r.getString("metodo_pago"));
+                    // Expone la presentación y cantidad originales para editar la misma venta.
+                    if (ventas) {
+                        fila.put("unidadVenta", r.getString("unidadVenta"));
+                        fila.put("cantidadPresentacion", r.getInt("cantidadPresentacion"));
+                    }
                     }
                     // Agrega la fila procesada a la colección de resultados.
                     datos.add(fila);
@@ -770,9 +784,9 @@ public class MovimientoDAO {
     /** Recupera nombre, lote, precio y existencias con bloqueo para evitar sobreventas. */
     private Producto obtenerProducto(Connection c, int id) throws SQLException {
         // Consulta ficha y stock consolidado, bloqueando la fila durante la transacción.
-        String sql = "SELECT p.nombre,p.lote,p.fecha_vencimiento,p.precio_venta,p.unidad_base,p.unidades_por_presentacion,p.unidades_por_blister,COALESCE(SUM(i.cantidad),0) AS stock "
+        String sql = "SELECT p.nombre,p.lote,p.fecha_vencimiento,p.precio_venta,p.precio_blister,p.precio_presentacion,p.unidad_base,p.unidades_por_presentacion,p.unidades_por_blister,COALESCE(SUM(i.cantidad),0) AS stock "
                 + "FROM producto p LEFT JOIN inventario i ON i.id_producto=p.idProducto "
-                + "WHERE p.idProducto=? GROUP BY p.idProducto,p.nombre,p.lote,p.fecha_vencimiento,p.precio_venta,p.unidad_base,p.unidades_por_presentacion,p.unidades_por_blister FOR UPDATE";
+                + "WHERE p.idProducto=? GROUP BY p.idProducto,p.nombre,p.lote,p.fecha_vencimiento,p.precio_venta,p.precio_blister,p.precio_presentacion,p.unidad_base,p.unidades_por_presentacion,p.unidades_por_blister FOR UPDATE";
         try (PreparedStatement p = c.prepareStatement(sql)) {
             // Limita la consulta al producto solicitado.
             p.setInt(1, id);
@@ -781,7 +795,7 @@ public class MovimientoDAO {
                 if (!r.next()) throw new SQLException("El producto ya no existe.");
                 // Empaqueta los datos consultados para usarlos sin repetir consultas.
                 return new Producto(r.getString("nombre"), r.getString("lote"), r.getDate("fecha_vencimiento"),
-                        r.getDouble("precio_venta"), r.getInt("stock"), r.getString("unidad_base"), r.getInt("unidades_por_presentacion"), r.getInt("unidades_por_blister"));
+                        r.getDouble("precio_venta"), nullableDouble(r, "precio_blister"), nullableDouble(r, "precio_presentacion"), r.getInt("stock"), r.getString("unidad_base"), r.getInt("unidades_por_presentacion"), r.getInt("unidades_por_blister"));
             }
         }
     }
@@ -909,22 +923,40 @@ public class MovimientoDAO {
         return datos;
     }
 
+    // Convierte un campo decimal de SQL a Double y conserva NULL para precios no configurados.
+    private static Double nullableDouble(ResultSet resultado, String columna) throws SQLException {
+        java.math.BigDecimal valor = resultado.getBigDecimal(columna);
+        return valor == null ? null : valor.doubleValue();
+    }
+
     /** Estructura interna para reutilizar los valores bloqueados del producto. */
     private static final class Producto {
         private final String nombre;
         private final String lote;
         private final Date vencimiento;
         private final double precio;
+        private final Double precioBlister;
+        private final Double precioPresentacion;
         private final int stock;
         private final String unidadBase;
         private final int unidadesPorPresentacion;
         private final int unidadesPorBlister;
         // Construye el snapshot del producto usado dentro de la transacción actual.
-        private Producto(String nombre, String lote, Date vencimiento, double precio, int stock, String unidadBase, int unidadesPorPresentacion, int unidadesPorBlister) {
+        private Producto(String nombre, String lote, Date vencimiento, double precio, Double precioBlister, Double precioPresentacion, int stock, String unidadBase, int unidadesPorPresentacion, int unidadesPorBlister) {
             // Copia los datos de producto que requieren las reglas de venta y recepción.
             this.nombre = nombre; this.lote = lote; this.vencimiento = vencimiento; this.precio = precio; this.stock = stock;
+            this.precioBlister = precioBlister; this.precioPresentacion = precioPresentacion;
             this.unidadBase = unidadBase; this.unidadesPorPresentacion = unidadesPorPresentacion;
             this.unidadesPorBlister = unidadesPorBlister;
+        }
+
+        // Devuelve el precio explícito de la presentación o lo calcula con el precio unitario.
+        private double precioPorPresentacion(String unidadVenta) {
+            return switch (unidadVenta == null ? "base" : unidadVenta) {
+                case "blister" -> precioBlister == null ? precio * unidadesPorBlister : precioBlister;
+                case "presentacion" -> precioPresentacion == null ? precio * unidadesPorPresentacion : precioPresentacion;
+                default -> precio;
+            };
         }
     }
 }

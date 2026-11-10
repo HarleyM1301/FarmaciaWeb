@@ -53,6 +53,9 @@ public class MedicamentoServlet extends HttpServlet {
             // Convierte los valores numéricos del formulario a sus tipos de dominio.
             int stock = Integer.parseInt(request.getParameter("stock"));
             double precio = Double.parseDouble(request.getParameter("precio"));
+            // Lee precios opcionales para venta por blíster y caja.
+            Double precioBlister = precioOpcional(request.getParameter("precioBlister"));
+            Double precioPresentacion = precioOpcional(request.getParameter("precioPresentacion"));
             String unidadBase = request.getParameter("unidadBase");
             int unidadesPorPresentacion = Integer.parseInt(request.getParameter("unidadesPorPresentacion"));
             String blisterIngresado = request.getParameter("unidadesPorBlister");
@@ -65,7 +68,9 @@ public class MedicamentoServlet extends HttpServlet {
                     || stock < 0
                     || unidadesPorPresentacion < 1 || unidadesPorBlister < 0 || unidadesPorBlister > unidadesPorPresentacion
                     || unidadesPorBlister > 0 && unidadesPorPresentacion % unidadesPorBlister != 0
-                    || !Double.isFinite(precio) || precio < 0) {
+                    || !Double.isFinite(precio) || precio < 0
+                    || precioBlister != null && (!Double.isFinite(precioBlister) || precioBlister < 0)
+                    || precioPresentacion != null && (!Double.isFinite(precioPresentacion) || precioPresentacion < 0)) {
                 // Regresa al catálogo con un indicador para mostrar el error de validación.
                 response.sendRedirect(destino + "?error=1");
                 // Detiene el guardado cuando los campos no son válidos.
@@ -84,6 +89,8 @@ public class MedicamentoServlet extends HttpServlet {
             m.setFechaVencimiento(fecha == null || fecha.isBlank() ? null : fecha);
             m.setStock(stock);
             m.setPrecio(precio);
+            m.setPrecioBlister(precioBlister);
+            m.setPrecioPresentacion(precioPresentacion);
             m.setUnidadBase(unidadBase);
             m.setUnidadesPorPresentacion(unidadesPorPresentacion);
             m.setUnidadesPorBlister(unidadesPorBlister);
@@ -111,5 +118,10 @@ public class MedicamentoServlet extends HttpServlet {
         m.setIdMedicamento(Integer.parseInt(id));
         // Solicita al DAO persistir las modificaciones de esa ficha.
         return dao.actualizar(m);
+    }
+
+    // Convierte un precio opcional vacío en NULL y conserva los precios ingresados.
+    private Double precioOpcional(String valor) {
+        return valor == null || valor.isBlank() ? null : Double.valueOf(valor.trim());
     }
 }
